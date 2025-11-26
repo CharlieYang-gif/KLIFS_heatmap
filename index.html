@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>Kinase IFP Heatmap Tool</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Plotly for heatmap -->
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <!-- SheetJS for reading Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1rem 2rem;
+      background: #f5f5f5;
+    }
+    h1 {
+      margin-top: 0;
+    }
+    .panel {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    label {
+      font-weight: 600;
+    }
+    input[type="number"], select {
+      padding: 0.25rem 0.4rem;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      min-width: 60px;
+    }
+    input[type="file"] {
+      margin-top: 0.25rem;
+    }
+    button {
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      background: #1f7ae0;
+      color: white;
+      font-weight: 600;
+      margin-right: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    button:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+    }
+    .flex-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+    }
+    .field {
+      margin-bottom: 0.5rem;
+    }
+    .field small {
+      display: block;
+      color: #666;
+      font-weight: 400;
+    }
+    #heatmap {
+      width: 100%;
+      height: 600px;
+      background: #ffffff;
+      border-radius: 12px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      max-height: 300px;
+      overflow-y: auto;
+      display: block;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 4px 6px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    th {
+      background: #f0f0f0;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Kinase Interaction Fingerprint Heatmap</h1>
+
+  <div class="panel">
+    <h2>1. 上傳檔案與設定</h2>
+    <div class="field">
+      <label>上傳 KLIFS IFP Excel 檔（.xlsx）</label><br />
+      <input type="file" id="fileInput" accept=".xlsx" />
+    </div>
+
+    <div class="flex-row">
+      <div class="field">
+        <div class="checkbox-row">
+          <input type="checkbox" id="collapseHpHb" checked />
+          <label for="collapseHpHb">將 IFP_type 1–3 / 4–7 整合為 HP/HB</label>
+        </div>
+        <small>打勾：用 position-HP / position-HB；取消：用原始 IFP bits。</small>
+      </div>
+
+      <div class="field">
+        <label for="metaRows">Meta 列數</label><br />
+        <input type="number" id="metaRows" value="5" min="1" max="20" />
+        <small>依你目前檔案格式，預設是 5 行 meta。</small>
+      </div>
+
+      <div class="field">
+        <label for="metaCols">Meta 欄數</label><br />
+        <input type="number" id="metaCols" value="5" min="1" max="20" />
+        <small>預設前 5 欄：RowID, structure_ID, kinase, kinase_ID, pdb。</small>
+      </div>
+
+      <div class="field">
+        <label for="ifpStartCol">IFP 起始欄 index</label><br />
+        <input type="number" id="ifpStartCol" value="5" min="0" max="100" />
+        <small>0=A 欄，5=第 6 欄 (F)。</small>
+      </div>
+    </div>
+
+    <button id="processBtn" disabled>執行分析</button>
+    <span id="statusText"></span>
+  </div>
+
+  <div class="panel">
+    <h2>2. 選擇要畫圖的 kinase</h2>
+    <div class="field">
+      <label for="kinaseSelect">選擇一個或多個 kinase（不選 = 全部）</label><br />
+      <select id="kinaseSelect" multiple size="6" style="min-width: 200px;"></select>
+    </div>
+    <button id="updatePlotBtn" disabled>更新 heatmap</button>
+  </div>
+
+  <div class="panel">
+    <h2>3. 逐 kinase 發生率表預覽</h2>
+    <div id="tableContainer"></div>
+  </div>
+
+  <div class="panel">
+    <h2>4. Heatmap 預覽與下載</h2>
+    <div id="heatmap"></div>
+    <button id="downloadExcelBtn" disabled>下載結果 Excel（CSV）</button>
+    <button id="downloadPngBtn" disabled>下載 heatmap 圖檔（PNG）</button>
+  </div>
+
+  <script>
+    let rawData = null;              // 2D array from Excel
+    let kinaseFreqMatrix = null;     // Array of row objects: {kinase: ..., feature1: ..., ...}
+    let featureNames = [];           // Columns (x-axis)
+    let kinaseNames = [];            // All kinase names in result
+    const kinaseKeyName = "kinase";  // 依你原始欄位第 3 欄是 kinase
+
+    const fileInput = document.getElementById("fileInput");
+    const processBtn = document.getElementById("processBtn");
+    const collapseHpHbCheckbox = document.getElementById("collapseHpHb");
+    const metaRowsInput = document.getElementById("metaRows");
+    const metaColsInput = document.getElementById("metaCols");
+    const ifpStartColInput = document.getElementById("ifpStartCol");
+    const statusText = document.getElementById("statusText");
+    const kinaseSelect = document.getElementById("kinaseSelect");
+    const updatePlotBtn = document.getElementById("updatePlotBtn");
+    const tableContainer = document.getElementById("tableContainer");
+    const downloadExcelBtn = document.getElementById("downloadExcelBtn");
+    const downloadPngBtn = document.getElementById("downloadPngBtn");
+
+    // 當使用者選了 Excel 檔
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) {
+        rawData = null;
+        processBtn.disabled = true;
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        // 轉成 2D array，dense: true 確保每格都有
+        rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true, defval: null });
+        processBtn.disabled = false;
+        statusText.textContent = " 檔案讀取成功，可以執行分析。";
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    // 主處理按鈕
+    processBtn.addEventListener("click", () => {
+      if (!rawData) return;
+      const nMetaRows = parseInt(metaRowsInput.value, 10) || 5;
+      const nMetaCols = parseInt(metaColsInput.value, 10) || 5;
+      const ifpStartCol = parseInt(ifpStartColInput.value, 10) || 5;
+      const collapse = collapseHpHbCheckbox.checked;
+
+      statusText.textContent = " 計算中...";
+      setTimeout(() => {
+        try {
+          const structRows = collapse
+            ? collapseToHpHb(rawData, nMetaRows, nMetaCols, ifpStartCol)
+            : useRawIfpBits(rawData, nMetaRows, nMetaCols, ifpStartCol);
+
+          const result = computeKinaseFrequency(structRows, kinaseKeyName);
+          kinaseFreqMatrix = result.rows;
+          kinaseNames = result.kinases;
+          featureNames = result.features;
+
+          fillKinaseSelect(kinaseNames);
+          renderTablePreview(kinaseFreqMatrix, featureNames);
+          drawHeatmap(kinaseFreqMatrix, featureNames, kinaseNames);
+
+          updatePlotBtn.disabled = false;
+          downloadExcelBtn.disabled = false;
+          downloadPngBtn.disabled = false;
+          statusText.textContent = " 分析完成。";
+        } catch (err) {
+          console.error(err);
+          statusText.textContent = " 錯誤：" + err.message;
+        }
+      }, 10);
+    });
+
+    // 更新 heatmap（根據選取的 kinase）
+    updatePlotBtn.addEventListener("click", () => {
+      if (!kinaseFreqMatrix) return;
+      const selected = Array.from(kinaseSelect.selectedOptions).map(opt => opt.value);
+      let rowsToUse;
+      let namesToUse;
+      if (selected.length === 0) {
+        rowsToUse = kinaseFreqMatrix;
+        namesToUse = kinaseNames;
+      } else {
+        rowsToUse = kinaseFreqMatrix.filter(r => selected.includes(r[kinaseKeyName]));
+        namesToUse = rowsToUse.map(r => r[kinaseKeyName]);
+      }
+      renderTablePreview(rowsToUse, featureNames);
+      drawHeatmap(rowsToUse, featureNames, namesToUse);
+    });
+
+    // 下載結果 CSV
+    downloadExcelBtn.addEventListener("click", () => {
+      if (!kinaseFreqMatrix) return;
+      const csv = matrixToCsv(kinaseFreqMatrix, featureNames, kinaseKeyName);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "kinase_interaction_frequency.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    // 下載 PNG 圖檔
+    downloadPngBtn.addEventListener("click", () => {
+      Plotly.toImage("heatmap", { format: "png", height: 600, width: 1200 })
+        .then((dataUrl) => {
+          const a = document.createElement("a");
+          a.href = dataUrl;
+          a.download = "kinase_heatmap.png";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        })
+        .catch((err) => {
+          console.error(err);
+          alert("產生 PNG 時發生錯誤，請開 F12 看 console。");
+        });
+    });
+
+    // ---------- 資料處理邏輯（模仿 Python 版） ----------
+
+    function collapseToHpHb(data, nMetaRows, nMetaCols, ifpStartCol) {
+      const positionRow = data[1].slice(ifpStartCol);
+      const ifpTypeRow = data[2].slice(ifpStartCol);
+      const headerRow = data[0];
+
+      const hpTypes = new Set([1, 2, 3]);
+      const hbTypes = new Set([4, 5, 6, 7]);
+
+      const posToHpCols = {};
+      const posToHbCols = {};
+
+      for (let j = 0; j < positionRow.length; j++) {
+        const pos = positionRow[j];
+        const t = ifpTypeRow[j];
+        const colIdx = ifpStartCol + j;
+        if (pos == null || t == null || pos === "" || t === "") continue;
+
+        const posInt = parseInt(pos, 10);
+        const tInt = parseInt(t, 10);
+        if (!Number.isFinite(posInt) || !Number.isFinite(tInt)) continue;
+
+        if (!posToHpCols[posInt]) posToHpCols[posInt] = [];
+        if (!posToHbCols[posInt]) posToHbCols[posInt] = [];
+
+        if (hpTypes.has(tInt)) {
+          posToHpCols[posInt].push(colIdx);
+        } else if (hbTypes.has(tInt)) {
+          posToHbCols[posInt].push(colIdx);
+        }
+      }
+
+      const allPositions = Array.from(new Set([
+        ...Object.keys(posToHpCols).map(Number),
+        ...Object.keys(posToHbCols).map(Number),
+      ])).sort((a, b) => a - b);
+
+      const metaColNames = headerRow.slice(0, nMetaCols);
+
+      const structRows = [];
+      for (let i = nMetaRows; i < data.length; i++) {
+        const row = data[i];
+        if (!row || row.every(v => v == null || v === "")) continue;
+
+        const obj = {};
+        for (let c = 0; c < nMetaCols; c++) {
+          const colName = metaColNames[c] || `col${c}`;
+          obj[colName] = row[c];
+        }
+
+        for (const pos of allPositions) {
+          const hpCols = posToHpCols[pos] || [];
+          const hbCols = posToHbCols[pos] || [];
+
+          let hpValue = 0;
+          let hbValue = 0;
+
+          if (hpCols.length > 0) {
+            for (const idx of hpCols) {
+              const v = row[idx];
+              const num = Number(v);
+              if (Number.isFinite(num) && num > 0) {
+                hpValue = 1;
+                break;
+              }
+            }
+          }
+          if (hbCols.length > 0) {
+            for (const idx of hbCols) {
+              const v = row[idx];
+              const num = Number(v);
+              if (Number.isFinite(num) && num > 0) {
+                hbValue = 1;
+                break;
+              }
+            }
+          }
+
+          obj[`${pos}-HP`] = hpValue;
+          obj[`${pos}-HB`] = hbValue;
+        }
+
+        structRows.push(obj);
+      }
+
+      return structRows;
+    }
+
+    function useRawIfpBits(data, nMetaRows, nMetaCols, ifpStartCol) {
+      const headerRow = data[0];
+      const structRows = [];
+
+      for (let i = nMetaRows; i < data.length; i++) {
+        const row = data[i];
+        if (!row || row.every(v => v == null || v === "")) continue;
+
+        const obj = {};
+        for (let c = 0; c < headerRow.length; c++) {
+          const colName = headerRow[c] || `col${c}`;
+          let v = row[c];
+          if (c >= ifpStartCol) {
+            v = Number(v);
+            if (!Number.isFinite(v)) v = 0;
+          }
+          obj[colName] = v;
+        }
+        structRows.push(obj);
+      }
+      return structRows;
+    }
+
+    function computeKinaseFrequency(structRows, kinaseColName) {
+      // group by kinase
+      const groups = {};
+      for (const row of structRows) {
+        const k = row[kinaseColName];
+        if (k == null || k === "") continue;
+        if (!groups[k]) groups[k] = [];
+        groups[k].push(row);
+      }
+
+      const kinases = Object.keys(groups).sort();
+
+      // 找出 feature 欄位：排除 meta（前幾欄固定名稱）
+      // 這裡簡單一點：拿第一個 row 的 keys，排除 kinase/info 欄位
+      const exampleRow = structRows[0] || {};
+      const allKeys = Object.keys(exampleRow);
+      const metaCandidate = ["RowID", "structure_ID", "kinase", "kinase_ID", "pdb"];
+      const featureCols = allKeys.filter(k => !metaCandidate.includes(k));
+
+      const resultRows = [];
+
+      for (const k of kinases) {
+        const rows = groups[k];
+        const outRow = {};
+        outRow[kinaseColName] = k;
+
+        for (const col of featureCols) {
+          let sum = 0;
+          let count = 0;
+          for (const r of rows) {
+            const v = Number(r[col]);
+            if (Number.isFinite(v)) {
+              sum += v;
+              count += 1;
+            }
+          }
+          const mean = count > 0 ? (sum / count) * 100 : 0;
+          outRow[col] = mean;
+        }
+
+        resultRows.push(outRow);
+      }
+
+      return {
+        rows: resultRows,
+        kinases,
+        features: featureCols
+      };
+    }
+
+    // ---------- UI Helper ----------
+
+    function fillKinaseSelect(kinaseNames) {
+      kinaseSelect.innerHTML = "";
+      kinaseNames.forEach(k => {
+        const opt = document.createElement("option");
+        opt.value = k;
+        opt.textContent = k;
+        kinaseSelect.appendChild(opt);
+      });
+    }
+
+    function renderTablePreview(rows, featureNames, maxRows = 50) {
+      if (!rows || rows.length === 0) {
+        tableContainer.innerHTML = "<p>沒有資料可顯示。</p>";
+        return;
+      }
+
+      const cols = [kinaseKeyName, ...featureNames];
+      const limitedRows = rows.slice(0, maxRows);
+
+      let html = "<table><thead><tr>";
+      cols.forEach(c => {
+        html += `<th>${escapeHtml(c)}</th>`;
+      });
+      html += "</tr></thead><tbody>";
+
+      for (const r of limitedRows) {
+        html += "<tr>";
+        cols.forEach(c => {
+          const v = r[c];
+          const text = (typeof v === "number")
+            ? v.toFixed(1)
+            : (v == null ? "" : String(v));
+          html += `<td>${escapeHtml(text)}</td>`;
+        });
+        html += "</tr>";
+      }
+
+      html += "</tbody></table>";
+      if (rows.length > maxRows) {
+        html += `<p>（只顯示前 ${maxRows} 列，實際共有 ${rows.length} 列。）</p>`;
+      }
+
+      tableContainer.innerHTML = html;
+    }
+
+    function drawHeatmap(rows, features, names) {
+      if (!rows || rows.length === 0) {
+        Plotly.purge("heatmap");
+        return;
+      }
+      const z = rows.map(r => features.map(f => Number(r[f]) || 0));
+      const y = rows.map(r => r[kinaseKeyName]);
+      const x = features;
+
+      const data = [{
+        z,
+        x,
+        y,
+        type: "heatmap",
+        colorscale: "Viridis",
+        colorbar: { title: "Frequency (%)" },
+        zmin: 0
+      }];
+
+      const layout = {
+        title: "Kinase Interaction Frequency Heatmap (%)",
+        xaxis: { title: "Interaction Features", tickangle: -90 },
+        yaxis: { title: "Kinase" },
+        margin: { l: 120, r: 20, t: 40, b: 150 }
+      };
+
+      Plotly.newPlot("heatmap", data, layout, { responsive: true });
+    }
+
+    function matrixToCsv(rows, features, kinaseKey) {
+      const headers = [kinaseKey, ...features];
+      const lines = [];
+      lines.push(headers.join(","));
+      for (const r of rows) {
+        const row = [r[kinaseKey]];
+        for (const f of features) {
+          let v = r[f];
+          if (typeof v === "number") v = v.toFixed(4);
+          if (v == null) v = "";
+          // 簡單 escape
+          const s = String(v).replace(/"/g, '""');
+          row.push(`"${s}"`);
+        }
+        lines.push(row.join(","));
+      }
+      return lines.join("\n");
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+  </script>
+</body>
+</html>
