@@ -205,12 +205,33 @@
     <div id="tableContainer"></div>
   </div>
 
-  <div class="panel">
-    <h2>4. Heatmap 預覽與下載</h2>
-    <div id="heatmap"></div>
-    <button id="downloadExcelBtn" disabled>下載結果 Excel（CSV）</button>
-    <button id="downloadPngBtn" disabled>下載 heatmap 圖檔（PNG）</button>
+ <div class="panel">
+  <h2>4. Heatmap 預覽與下載</h2>
+
+  <div class="flex-row">
+    <div class="field">
+      <label for="heatmapWidth">Heatmap 寬度（px）</label><br />
+      <input type="number" id="heatmapWidth" value="1200" min="400" max="4000" />
+    </div>
+    <div class="field">
+      <label for="heatmapHeight">Heatmap 高度（px）</label><br />
+      <input type="number" id="heatmapHeight" value="600" min="300" max="3000" />
+    </div>
+    <div class="field">
+      <label for="csvFilename">結果檔案名稱（CSV）</label><br />
+      <input type="text" id="csvFilename" value="kinase_interaction_frequency.csv" />
+      <small class="muted">僅檔名，實際存放路徑由瀏覽器決定。</small>
+    </div>
+    <div class="field">
+      <label for="pngFilename">圖檔名稱（PNG）</label><br />
+      <input type="text" id="pngFilename" value="kinase_heatmap.png" />
+    </div>
   </div>
+
+  <div id="heatmap"></div>
+  <button id="downloadExcelBtn" disabled>下載結果 Excel（CSV）</button>
+  <button id="downloadPngBtn" disabled>下載 heatmap 圖檔（PNG）</button>
+</div>
 
   <div class="panel">
     <h2>5. Double-check 工具</h2>
@@ -261,6 +282,10 @@
     const tableContainer = document.getElementById("tableContainer");
     const downloadExcelBtn = document.getElementById("downloadExcelBtn");
     const downloadPngBtn = document.getElementById("downloadPngBtn");
+    const heatmapWidthInput = document.getElementById("heatmapWidth");
+    const heatmapHeightInput = document.getElementById("heatmapHeight");
+    const csvFilenameInput = document.getElementById("csvFilename");
+    const pngFilenameInput = document.getElementById("pngFilename");
 
     const dcIfpNameRow = document.getElementById("dcIfpNameRow");
     const dcPdbRow = document.getElementById("dcPdbRow");
@@ -423,7 +448,8 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "kinase_interaction_frequency.csv";
+      const filename = (csvFilenameInput.value || "kinase_interaction_frequency.csv").trim();
+      a.download = filename || "kinase_interaction_frequency.csv";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -432,11 +458,17 @@
 
     // 下載 PNG 圖檔
     downloadPngBtn.addEventListener("click", () => {
-      Plotly.toImage("heatmap", { format: "png", height: 600, width: 1200 })
+      const size = getHeatmapSize();
+      Plotly.toImage("heatmap", {
+        format: "png",
+        height: size.height,
+        width: size.width
+      })
         .then((dataUrl) => {
           const a = document.createElement("a");
           a.href = dataUrl;
-          a.download = "kinase_heatmap.png";
+          const filename = (pngFilenameInput.value || "kinase_heatmap.png").trim();
+          a.download = filename || "kinase_heatmap.png";
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
@@ -662,7 +694,14 @@
     }
 
     // ---------- UI Helper ----------
-
+    function getHeatmapSize() {
+      let w = Number(heatmapWidthInput.value);
+      let h = Number(heatmapHeightInput.value);
+      if (!Number.isFinite(w) || w <= 0) w = 1200;
+      if (!Number.isFinite(h) || h <= 0) h = 600;
+      return { width: w, height: h };
+    }
+    
     function fillKinaseLists(kinaseNamesList) {
       availableKinasesSelect.innerHTML = "";
       selectedKinasesSelect.innerHTML = "";
@@ -733,7 +772,9 @@
         title: "Kinase Interaction Frequency Heatmap (%)",
         xaxis: { title: "Interaction Features", tickangle: -90 },
         yaxis: { title: "Kinase" },
-        margin: { l: 120, r: 20, t: 40, b: 150 }
+        margin: { l: 120, r: 20, t: 40, b: 150 },
+        width: size.width,
+        height: size.height
       };
 
       Plotly.newPlot("heatmap", data, layout, { responsive: true });
