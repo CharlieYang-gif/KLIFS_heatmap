@@ -416,21 +416,22 @@
 
     // 更新 heatmap 按鈕
     updatePlotBtn.addEventListener("click", () => {
-      if (!kinaseFreqMatrix) return;
-      const selected = getSelectedKinaseNames();
-      let rowsToUse;
-      let namesToUse;
-      if (selected.length === 0) {
-        rowsToUse = kinaseFreqMatrix;
-        namesToUse = kinaseNames;
-      } else {
-        rowsToUse = kinaseFreqMatrix.filter(r => selected.includes(r[kinaseKeyName]));
-        namesToUse = rowsToUse.map(r => r[kinaseKeyName]);
-      }
-      renderTablePreview(rowsToUse, featureNames);
-      drawHeatmap(rowsToUse, featureNames, namesToUse);
+    if (!kinaseFreqMatrix) return;
+    const { rows, names } = getRowsForCurrentSelection();
+    renderTablePreview(rows, featureNames);
+    drawHeatmap(rows, featureNames, names);
     });
+    
+    function handleHeatmapSizeChange() {
+      if (!kinaseFreqMatrix) return;
+      const { rows, names } = getRowsForCurrentSelection();
+      if (!rows || rows.length === 0) return;
+      drawHeatmap(rows, featureNames, names);
+    }
 
+    // 輸入過程就更新（input 比 change 更即時）
+    heatmapWidthInput.addEventListener("input", handleHeatmapSizeChange);
+    heatmapHeightInput.addEventListener("input", handleHeatmapSizeChange);
     // 下載結果 CSV
     downloadExcelBtn.addEventListener("click", () => {
       if (!kinaseFreqMatrix) return;
@@ -701,7 +702,19 @@
       if (!Number.isFinite(h) || h <= 0) h = 600;
       return { width: w, height: h };
     }
-    
+    function getRowsForCurrentSelection() {
+      if (!kinaseFreqMatrix || !featureNames) {
+        return { rows: [], names: [] };
+      }
+      const selected = getSelectedKinaseNames();
+      if (selected.length === 0) {
+        return { rows: kinaseFreqMatrix, names: kinaseNames };
+      } else {
+        const rows = kinaseFreqMatrix.filter(r => selected.includes(r[kinaseKeyName]));
+        const names = rows.map(r => r[kinaseKeyName]);
+        return { rows, names };
+      }
+    }
     function fillKinaseLists(kinaseNamesList) {
       availableKinasesSelect.innerHTML = "";
       selectedKinasesSelect.innerHTML = "";
