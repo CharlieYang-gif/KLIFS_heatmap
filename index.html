@@ -217,15 +217,21 @@
       <label for="heatmapHeight">Heatmap 高度（px）</label><br />
       <input type="number" id="heatmapHeight" value="600" min="300" max="3000" />
     </div>
+  <div class="flex-row" style="align-items:flex-end;">
     <div class="field">
       <label for="csvFilename">結果檔案名稱（CSV）</label><br />
       <input type="text" id="csvFilename" value="kinase_interaction_frequency.csv" />
-      <small class="muted">僅檔名，實際存放路徑由瀏覽器決定。</small>
     </div>
+  
+    <button id="downloadExcelBtn" disabled style="margin-top:0;">下載 CSV</button>
+  
     <div class="field">
       <label for="pngFilename">圖檔名稱（PNG）</label><br />
       <input type="text" id="pngFilename" value="kinase_heatmap.png" />
     </div>
+  
+    <button id="downloadPngBtn" disabled style="margin-top:0;">下載 PNG</button>
+  </div>
   </div>
 
   <div id="heatmap"></div>
