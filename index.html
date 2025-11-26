@@ -757,7 +757,7 @@
       const z = rows.map(r => features.map(f => Number(r[f]) || 0));
       const y = rows.map(r => r[kinaseKeyName]);
       const x = features;
-
+      const size = getHeatmapSize();
       const data = [{
         z,
         x,
