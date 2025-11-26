@@ -30,11 +30,12 @@
     label {
       font-weight: 600;
     }
-    input[type="number"], select {
+    input[type="number"], select, textarea {
       padding: 0.25rem 0.4rem;
       border-radius: 6px;
       border: 1px solid #ccc;
-      min-width: 60px;
+      font-family: inherit;
+      font-size: 0.9rem;
     }
     input[type="file"] {
       margin-top: 0.25rem;
@@ -98,6 +99,40 @@
       align-items: center;
       gap: 0.3rem;
     }
+    .dual-list-container {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .dual-list-column {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .dual-list-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      margin-top: 1.5rem;
+    }
+    .dual-list-select {
+      min-width: 180px;
+      min-height: 180px;
+    }
+    .search-input {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 80px;
+    }
+    .muted {
+      color: #666;
+      font-size: 0.85rem;
+    }
   </style>
 </head>
 <body>
@@ -116,7 +151,7 @@
           <input type="checkbox" id="collapseHpHb" checked />
           <label for="collapseHpHb">將 IFP_type 1–3 / 4–7 整合為 HP/HB</label>
         </div>
-        <small>打勾：用 position-HP / position-HB；取消：用原始 IFP bits。</small>
+        <small>打勾：用 position-HP / position-HB；取消：用原始 IFP bits（下載的 CSV 會保留原始前 5 行）。</small>
       </div>
 
       <div class="field">
@@ -144,10 +179,24 @@
 
   <div class="panel">
     <h2>2. 選擇要畫圖的 kinase</h2>
-    <div class="field">
-      <label for="kinaseSelect">選擇一個或多個 kinase（不選 = 全部）</label><br />
-      <select id="kinaseSelect" multiple size="6" style="min-width: 200px;"></select>
+    <div class="dual-list-container">
+      <div class="dual-list-column" style="flex:1;">
+        <label>未選擇的 kinase</label>
+        <input type="text" id="kinaseSearch" class="search-input" placeholder="搜尋 kinase..." />
+        <select id="availableKinases" multiple class="dual-list-select"></select>
+      </div>
+
+      <div class="dual-list-buttons">
+        <button id="addKinaseBtn">&gt;&gt;</button>
+        <button id="removeKinaseBtn">&lt;&lt;</button>
+      </div>
+
+      <div class="dual-list-column" style="flex:1;">
+        <label>已選擇的 kinase</label>
+        <select id="selectedKinases" multiple class="dual-list-select"></select>
+      </div>
     </div>
+    <div class="muted">提示：可用搜尋框過濾左側列表。雙擊左側項目可移到右側，雙擊右側項目可移回左側。</div>
     <button id="updatePlotBtn" disabled>更新 heatmap</button>
   </div>
 
@@ -163,12 +212,38 @@
     <button id="downloadPngBtn" disabled>下載 heatmap 圖檔（PNG）</button>
   </div>
 
+  <div class="panel">
+    <h2>5. Double-check 工具</h2>
+    <p class="muted">
+      使用方式：從原始 Excel 複製兩行貼上：<br />
+      第 1 行：IFP_name 那一列（例如 0-1, 0-2, ...）<br />
+      第 2 行：某一個 PDB 的資料列（包含 0/1）。<br />
+      會針對該 PDB 所屬的 kinase，檢查目前輸出矩陣中「值為 0」的欄位是否與貼上的原始資料一致（都為 0）。
+    </p>
+    <div class="field">
+      <label>貼上 IFP_name 那一行</label>
+      <textarea id="dcIfpNameRow" placeholder="直接貼上整行 IFP_name ..."></textarea>
+    </div>
+    <div class="field">
+      <label>貼上某一個 PDB 的資料列</label>
+      <textarea id="dcPdbRow" placeholder="直接貼上某一列 PDB 的原始資料 ..."></textarea>
+    </div>
+    <button id="doubleCheckBtn" disabled>執行 double-check</button>
+    <div id="dcResult" class="muted" style="margin-top:0.5rem;"></div>
+  </div>
+
   <script>
     let rawData = null;              // 2D array from Excel
     let kinaseFreqMatrix = null;     // Array of row objects: {kinase: ..., feature1: ..., ...}
-    let featureNames = [];           // Columns (x-axis)
-    let kinaseNames = [];            // All kinase names in result
+    let featureNames = [];           // feature columns
+    let kinaseNames = [];            // all kinases in result
     const kinaseKeyName = "kinase";  // 依你原始欄位第 3 欄是 kinase
+
+    // 保留一些設定與狀態
+    let lastCollapseMode = true;        // true = HP/HB 模式, false = raw bits 模式
+    let lastMetaRows = 5;
+    let lastMetaCols = 5;
+    let lastIfpStartCol = 5;
 
     const fileInput = document.getElementById("fileInput");
     const processBtn = document.getElementById("processBtn");
@@ -177,13 +252,22 @@
     const metaColsInput = document.getElementById("metaCols");
     const ifpStartColInput = document.getElementById("ifpStartCol");
     const statusText = document.getElementById("statusText");
-    const kinaseSelect = document.getElementById("kinaseSelect");
+    const availableKinasesSelect = document.getElementById("availableKinases");
+    const selectedKinasesSelect = document.getElementById("selectedKinases");
+    const kinaseSearchInput = document.getElementById("kinaseSearch");
+    const addKinaseBtn = document.getElementById("addKinaseBtn");
+    const removeKinaseBtn = document.getElementById("removeKinaseBtn");
     const updatePlotBtn = document.getElementById("updatePlotBtn");
     const tableContainer = document.getElementById("tableContainer");
     const downloadExcelBtn = document.getElementById("downloadExcelBtn");
     const downloadPngBtn = document.getElementById("downloadPngBtn");
 
-    // 當使用者選了 Excel 檔
+    const dcIfpNameRow = document.getElementById("dcIfpNameRow");
+    const dcPdbRow = document.getElementById("dcPdbRow");
+    const doubleCheckBtn = document.getElementById("doubleCheckBtn");
+    const dcResult = document.getElementById("dcResult");
+
+    // Excel 上傳
     fileInput.addEventListener("change", (e) => {
       const file = e.target.files[0];
       if (!file) {
@@ -197,21 +281,29 @@
         const workbook = XLSX.read(data, { type: "array" });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
-        // 轉成 2D array，dense: true 確保每格都有
-        rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true, defval: null });
+        rawData = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
+          raw: true,
+          defval: null
+        });
         processBtn.disabled = false;
         statusText.textContent = " 檔案讀取成功，可以執行分析。";
       };
       reader.readAsArrayBuffer(file);
     });
 
-    // 主處理按鈕
+    // 主分析按鈕
     processBtn.addEventListener("click", () => {
       if (!rawData) return;
       const nMetaRows = parseInt(metaRowsInput.value, 10) || 5;
       const nMetaCols = parseInt(metaColsInput.value, 10) || 5;
       const ifpStartCol = parseInt(ifpStartColInput.value, 10) || 5;
       const collapse = collapseHpHbCheckbox.checked;
+
+      lastCollapseMode = collapse;
+      lastMetaRows = nMetaRows;
+      lastMetaCols = nMetaCols;
+      lastIfpStartCol = ifpStartCol;
 
       statusText.textContent = " 計算中...";
       setTimeout(() => {
@@ -220,18 +312,19 @@
             ? collapseToHpHb(rawData, nMetaRows, nMetaCols, ifpStartCol)
             : useRawIfpBits(rawData, nMetaRows, nMetaCols, ifpStartCol);
 
-          const result = computeKinaseFrequency(structRows, kinaseKeyName);
+          const result = computeKinaseFrequency(structRows, kinaseKeyName, nMetaCols);
           kinaseFreqMatrix = result.rows;
           kinaseNames = result.kinases;
           featureNames = result.features;
 
-          fillKinaseSelect(kinaseNames);
+          fillKinaseLists(kinaseNames);
           renderTablePreview(kinaseFreqMatrix, featureNames);
           drawHeatmap(kinaseFreqMatrix, featureNames, kinaseNames);
 
           updatePlotBtn.disabled = false;
           downloadExcelBtn.disabled = false;
           downloadPngBtn.disabled = false;
+          doubleCheckBtn.disabled = false;
           statusText.textContent = " 分析完成。";
         } catch (err) {
           console.error(err);
@@ -240,10 +333,66 @@
       }, 10);
     });
 
-    // 更新 heatmap（根據選取的 kinase）
+    // 兩個 list 之間移動
+    function moveSelected(fromSelect, toSelect) {
+      const selectedOptions = Array.from(fromSelect.selectedOptions);
+      selectedOptions.forEach(opt => {
+        // 避免重複
+        const exists = Array.from(toSelect.options).some(o => o.value === opt.value);
+        if (!exists) {
+          const newOpt = document.createElement("option");
+          newOpt.value = opt.value;
+          newOpt.textContent = opt.textContent;
+          toSelect.appendChild(newOpt);
+        }
+        fromSelect.removeChild(opt);
+      });
+    }
+
+    addKinaseBtn.addEventListener("click", () => {
+      moveSelected(availableKinasesSelect, selectedKinasesSelect);
+    });
+
+    removeKinaseBtn.addEventListener("click", () => {
+      moveSelected(selectedKinasesSelect, availableKinasesSelect);
+    });
+
+    // 雙擊移動
+    availableKinasesSelect.addEventListener("dblclick", () => {
+      moveSelected(availableKinasesSelect, selectedKinasesSelect);
+    });
+
+    selectedKinasesSelect.addEventListener("dblclick", () => {
+      moveSelected(selectedKinasesSelect, availableKinasesSelect);
+    });
+
+    // 搜尋過濾左側列表
+    kinaseSearchInput.addEventListener("input", () => {
+      if (!kinaseNames || kinaseNames.length === 0) return;
+      const query = kinaseSearchInput.value.trim().toLowerCase();
+      // 保留右側已選
+      const selectedValues = Array.from(selectedKinasesSelect.options).map(o => o.value);
+      // 重新填左側，過濾 + 排除已選
+      availableKinasesSelect.innerHTML = "";
+      kinaseNames
+        .filter(k => !selectedValues.includes(k))
+        .filter(k => k.toLowerCase().includes(query))
+        .forEach(k => {
+          const opt = document.createElement("option");
+          opt.value = k;
+          opt.textContent = k;
+          availableKinasesSelect.appendChild(opt);
+        });
+    });
+
+    function getSelectedKinaseNames() {
+      return Array.from(selectedKinasesSelect.options).map(o => o.value);
+    }
+
+    // 更新 heatmap 按鈕
     updatePlotBtn.addEventListener("click", () => {
       if (!kinaseFreqMatrix) return;
-      const selected = Array.from(kinaseSelect.selectedOptions).map(opt => opt.value);
+      const selected = getSelectedKinaseNames();
       let rowsToUse;
       let namesToUse;
       if (selected.length === 0) {
@@ -260,7 +409,16 @@
     // 下載結果 CSV
     downloadExcelBtn.addEventListener("click", () => {
       if (!kinaseFreqMatrix) return;
-      const csv = matrixToCsv(kinaseFreqMatrix, featureNames, kinaseKeyName);
+      const csv = matrixToCsv(
+        kinaseFreqMatrix,
+        featureNames,
+        kinaseKeyName,
+        lastCollapseMode,
+        rawData,
+        lastMetaRows,
+        lastMetaCols,
+        lastIfpStartCol
+      );
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -289,7 +447,62 @@
         });
     });
 
-    // ---------- 資料處理邏輯（模仿 Python 版） ----------
+    // Double-check
+    doubleCheckBtn.addEventListener("click", () => {
+      dcResult.textContent = "";
+      if (!kinaseFreqMatrix || !rawData) {
+        dcResult.textContent = "請先上傳檔案並執行分析。";
+        return;
+      }
+      const ifpRowText = dcIfpNameRow.value.trim();
+      const pdbRowText = dcPdbRow.value.trim();
+      if (!ifpRowText || !pdbRowText) {
+        dcResult.textContent = "請貼上 IFP_name 與 PDB 資料兩行。";
+        return;
+      }
+
+      const nMetaCols = lastMetaCols;
+      const ifpStartCol = lastIfpStartCol;
+
+      const ifpTokens = parseRowToArray(ifpRowText);
+      const pdbTokens = parseRowToArray(pdbRowText);
+
+      if (ifpTokens.length <= ifpStartCol || pdbTokens.length <= ifpStartCol) {
+        dcResult.textContent = "貼上的列欄數看起來不夠，請確認有包含 IFP 的所有欄位。";
+        return;
+      }
+
+      // 取得 kinase 名稱（假設在第 3 欄）
+      const kinaseNameFromRow = pdbTokens[2];
+      const targetRow = kinaseFreqMatrix.find(r => r[kinaseKeyName] === kinaseNameFromRow);
+      if (!targetRow) {
+        dcResult.textContent = `在輸出矩陣中找不到 kinase：${kinaseNameFromRow}`;
+        return;
+      }
+
+      const collapse = lastCollapseMode;
+      if (!collapse) {
+        const report = doubleCheckRawBits(
+          targetRow,
+          featureNames,
+          ifpTokens,
+          pdbTokens,
+          ifpStartCol
+        );
+        dcResult.innerHTML = report;
+      } else {
+        const report = doubleCheckHpHb(
+          targetRow,
+          featureNames,
+          ifpTokens,
+          pdbTokens,
+          ifpStartCol
+        );
+        dcResult.innerHTML = report;
+      }
+    });
+
+    // ---------- 資料處理邏輯 ----------
 
     function collapseToHpHb(data, nMetaRows, nMetaCols, ifpStartCol) {
       const positionRow = data[1].slice(ifpStartCol);
@@ -401,8 +614,7 @@
       return structRows;
     }
 
-    function computeKinaseFrequency(structRows, kinaseColName) {
-      // group by kinase
+    function computeKinaseFrequency(structRows, kinaseColName, nMetaCols) {
       const groups = {};
       for (const row of structRows) {
         const k = row[kinaseColName];
@@ -413,8 +625,6 @@
 
       const kinases = Object.keys(groups).sort();
 
-      // 找出 feature 欄位：排除 meta（前幾欄固定名稱）
-      // 這裡簡單一點：拿第一個 row 的 keys，排除 kinase/info 欄位
       const exampleRow = structRows[0] || {};
       const allKeys = Object.keys(exampleRow);
       const metaCandidate = ["RowID", "structure_ID", "kinase", "kinase_ID", "pdb"];
@@ -453,14 +663,16 @@
 
     // ---------- UI Helper ----------
 
-    function fillKinaseSelect(kinaseNames) {
-      kinaseSelect.innerHTML = "";
-      kinaseNames.forEach(k => {
+    function fillKinaseLists(kinaseNamesList) {
+      availableKinasesSelect.innerHTML = "";
+      selectedKinasesSelect.innerHTML = "";
+      kinaseNamesList.forEach(k => {
         const opt = document.createElement("option");
         opt.value = k;
         opt.textContent = k;
-        kinaseSelect.appendChild(opt);
+        availableKinasesSelect.appendChild(opt);
       });
+      kinaseSearchInput.value = "";
     }
 
     function renderTablePreview(rows, featureNames, maxRows = 50) {
@@ -527,9 +739,28 @@
       Plotly.newPlot("heatmap", data, layout, { responsive: true });
     }
 
-    function matrixToCsv(rows, features, kinaseKey) {
-      const headers = [kinaseKey, ...features];
+    function matrixToCsv(rows, features, kinaseKey, collapseMode, rawData, nMetaRows, nMetaCols, ifpStartCol) {
       const lines = [];
+
+      // 若是不整合 HP/HB（raw bits），在最前面保留原始前 5 行
+      if (!collapseMode && rawData) {
+        const maxCols = rawData.reduce((m, r) => Math.max(m, r.length), 0);
+        for (let i = 0; i < nMetaRows && i < rawData.length; i++) {
+          const row = rawData[i];
+          const padded = [];
+          for (let c = 0; c < maxCols; c++) {
+            let v = row[c];
+            if (v == null) v = "";
+            const s = String(v).replace(/"/g, '""');
+            padded.push(`"${s}"`);
+          }
+          lines.push(padded.join(","));
+        }
+        // 空一行
+        lines.push("");
+      }
+
+      const headers = [kinaseKey, ...features];
       lines.push(headers.join(","));
       for (const r of rows) {
         const row = [r[kinaseKey]];
@@ -537,13 +768,144 @@
           let v = r[f];
           if (typeof v === "number") v = v.toFixed(4);
           if (v == null) v = "";
-          // 簡單 escape
           const s = String(v).replace(/"/g, '""');
           row.push(`"${s}"`);
         }
         lines.push(row.join(","));
       }
       return lines.join("\n");
+    }
+
+    function parseRowToArray(text) {
+      // 嘗試用 tab 分隔，若沒有 tab 再用逗號
+      if (text.includes("\t")) {
+        return text.split("\t").map(s => s.trim());
+      } else {
+        return text.split(",").map(s => s.trim());
+      }
+    }
+
+    function doubleCheckRawBits(targetRow, features, ifpTokens, pdbTokens, ifpStartCol) {
+      const tol = 1e-8;
+      let checked = 0;
+      let mismatches = [];
+
+      for (let j = 0; j < features.length; j++) {
+        const feat = features[j];
+        const outVal = Number(targetRow[feat]);
+        if (!Number.isFinite(outVal)) continue;
+
+        if (Math.abs(outVal) < tol) {
+          // 輸出為 0，檢查原始 row
+          const idxInRaw = ifpStartCol + j;
+          const bitStr = pdbTokens[idxInRaw];
+          const bitVal = Number(bitStr);
+          if (Number.isFinite(bitVal)) {
+            checked++;
+            if (bitVal !== 0) {
+              mismatches.push({
+                feature: feat,
+                bit: bitVal
+              });
+            }
+          }
+        }
+      }
+
+      let html = `Raw bits 模式：檢查了輸出為 0 的 feature 共 ${checked} 個。<br/>`;
+      if (mismatches.length === 0) {
+        html += `<span style="color:green;">所有輸出為 0 的 feature，在貼上的那一列中也都是 0（未發現不一致）。</span>`;
+      } else {
+        html += `<span style="color:red;">發現 ${mismatches.length} 個不一致的欄位，前幾個例子：</span><br/>`;
+        mismatches.slice(0, 10).forEach(m => {
+          html += `feature=${escapeHtml(m.feature)}，貼上的原始 bit=${m.bit}<br/>`;
+        });
+      }
+      return html;
+    }
+
+    function doubleCheckHpHb(targetRow, features, ifpTokens, pdbTokens, ifpStartCol) {
+      const tol = 1e-8;
+      let checked = 0;
+      let mismatches = [];
+
+      // 先把貼上的 IFP_name row 分解成 position/type
+      const ifpNameParts = [];
+      for (let j = ifpStartCol; j < ifpTokens.length; j++) {
+        const name = ifpTokens[j];
+        if (!name) {
+          ifpNameParts.push(null);
+          continue;
+        }
+        const parts = name.split("-");
+        if (parts.length !== 2) {
+          ifpNameParts.push(null);
+          continue;
+        }
+        const pos = parseInt(parts[0], 10);
+        const t = parseInt(parts[1], 10);
+        if (!Number.isFinite(pos) || !Number.isFinite(t)) {
+          ifpNameParts.push(null);
+          continue;
+        }
+        ifpNameParts.push({ pos, type: t, colIndex: j });
+      }
+
+      for (const feat of features) {
+        const outVal = Number(targetRow[feat]);
+        if (!Number.isFinite(outVal)) continue;
+
+        if (Math.abs(outVal) < tol) {
+          // feat 形如 "1-HP" 或 "1-HB"
+          const parts = feat.split("-");
+          if (parts.length !== 2) continue;
+          const pos = parseInt(parts[0], 10);
+          const suffix = parts[1]; // "HP" or "HB"
+          if (!Number.isFinite(pos)) continue;
+
+          const typesToCheck = suffix === "HP" ? [1, 2, 3] : [4, 5, 6, 7];
+
+          let allZero = true;
+          let anyChecked = false;
+
+          for (let idx = 0; idx < ifpNameParts.length; idx++) {
+            const info = ifpNameParts[idx];
+            if (!info) continue;
+            if (info.pos !== pos) continue;
+            if (!typesToCheck.includes(info.type)) continue;
+
+            const colIndex = info.colIndex;
+            const bitStr = pdbTokens[colIndex];
+            const bitVal = Number(bitStr);
+            if (Number.isFinite(bitVal)) {
+              anyChecked = true;
+              if (bitVal !== 0) {
+                allZero = false;
+                mismatches.push({
+                  feature: feat,
+                  ifpName: `${info.pos}-${info.type}`,
+                  bit: bitVal
+                });
+              }
+            }
+          }
+
+          if (anyChecked) {
+            checked++;
+          }
+        }
+      }
+
+      let html = `HP/HB 模式：檢查了輸出為 0 的 HP/HB 欄位共 ${checked} 個（只針對貼上那一行 PDB 中有對應 position 的情況）。<br/>`;
+      if (mismatches.length === 0) {
+        html += `<span style="color:green;">所有輸出為 0 的 HP/HB 欄位，在貼上的原始資料中對應 position/type 的 bits 也都是 0（未發現不一致）。</span>`;
+      } else {
+        html += `<span style="color:red;">發現 ${mismatches.length} 個不一致的欄位，前幾個例子：</span><br/>`;
+        mismatches.slice(0, 10).forEach(m => {
+          html += `feature=${escapeHtml(m.feature)}，對應 IFP_name=${escapeHtml(m.ifpName)}，貼上的原始 bit=${m.bit}<br/>`;
+        });
+      }
+      return html;
     }
 
     function escapeHtml(str) {
