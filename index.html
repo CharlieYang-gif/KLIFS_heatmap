@@ -620,8 +620,10 @@
             }
           }
 
-          obj[`${pos}-HP`] = hpValue;
-          obj[`${pos}-HB`] = hbValue;
+  // ⭐ 這裡只改「命名」：真實 position 還是用原本的 0,1,2,...
+          const labelPos = pos + 1;      // 0 → 1, 1 → 2, 2 → 3, ...
+          obj[`${labelPos}-HP`] = hpValue;
+          obj[`${labelPos}-HB`] = hbValue;
         }
 
         structRows.push(obj);
@@ -919,10 +921,12 @@
           // feat 形如 "1-HP" 或 "1-HB"
           const parts = feat.split("-");
           if (parts.length !== 2) continue;
-          const pos = parseInt(parts[0], 10);
+          const displayPos = parseInt(parts[0], 10);  // 1, 2, 3, ...
+          if (!Number.isFinite(displayPos)) continue;
+          const pos = displayPos - 1;                  // ⭐ 轉回原始 position：0, 1, 2, ...
           const suffix = parts[1]; // "HP" or "HB"
-          if (!Number.isFinite(pos)) continue;
-
+      
+          if (!Number.isFinite(pos) || pos < 0) continue;
           const typesToCheck = suffix === "HP" ? [1, 2, 3] : [4, 5, 6, 7];
 
           let allZero = true;
