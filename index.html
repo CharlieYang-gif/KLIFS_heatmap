@@ -266,7 +266,16 @@
   </div>
 
   <div class="panel">
-    <h2>5. Double-check 工具</h2>
+    <h2>5. 交互作用平均發生率（已選 kinase）</h2>
+    <p class="muted">
+      會依照目前的篩選條件（family / group / 已選 kinase），計算每一個 interaction feature 在這批 kinase 中的平均發生率（%）。<br>
+      這裡顯示的是已經對每個 kinase 做過「結構平均」後，再對 kinase 做平均的結果。
+    </p>
+    <div id="featureStatsContainer"></div>
+  </div>
+
+  <div class="panel">
+    <h2>6. Double-check 工具</h2>
     <p class="muted">
       使用方式：從原始 Excel 複製兩行貼上：<br />
       第 1 行：IFP_name 那一列（例如 0-1, 0-2, ...）<br />
@@ -337,6 +346,8 @@
     const csvFilenameInput = document.getElementById("csvFilename");
     const pngFilenameInput = document.getElementById("pngFilename");
 
+    const featureStatsContainer = document.getElementById("featureStatsContainer");
+
     const dcIfpNameRow = document.getElementById("dcIfpNameRow");
     const dcPdbRow = document.getElementById("dcPdbRow");
     const doubleCheckBtn = document.getElementById("doubleCheckBtn");
@@ -396,10 +407,11 @@
           featureNames = result.features;
 
           fillKinaseLists(kinaseNames);
-          renderTablePreview(kinaseFreqMatrix, featureNames);
-
           const { rows, names } = getRowsForCurrentSelection();
+
+          renderTablePreview(rows, featureNames);
           drawHeatmap(rows, featureNames, names);
+          renderFeatureStats(rows, featureNames);
 
           updatePlotBtn.disabled = false;
           downloadExcelBtn.disabled = false;
@@ -472,6 +484,7 @@
       const { rows, names } = getRowsForCurrentSelection();
       renderTablePreview(rows, featureNames);
       drawHeatmap(rows, featureNames, names);
+      renderFeatureStats(rows, featureNames);
     });
 
     // heatmap 尺寸變更時即時更新
@@ -491,6 +504,7 @@
       const { rows, names } = getRowsForCurrentSelection();
       renderTablePreview(rows, featureNames);
       drawHeatmap(rows, featureNames, names);
+      renderFeatureStats(rows, featureNames);
     });
 
     groupFilterSelect.addEventListener("change", () => {
@@ -498,6 +512,7 @@
       const { rows, names } = getRowsForCurrentSelection();
       renderTablePreview(rows, featureNames);
       drawHeatmap(rows, featureNames, names);
+      renderFeatureStats(rows, featureNames);
     });
 
     // ===== 下載結果 CSV（只輸出目前篩選結果）=====
@@ -892,6 +907,58 @@
       Plotly.newPlot("heatmap", data, layout, { responsive: true });
     }
 
+    // ===== 新增：計算 & 呈現 feature 平均發生率 =====
+    function renderFeatureStats(rows, features, maxRows = 100) {
+      if (!rows || rows.length === 0) {
+        featureStatsContainer.innerHTML = "<p>目前篩選條件下沒有任何 kinase，因此無法計算交互作用平均發生率。</p>";
+        return;
+      }
+      if (!features || features.length === 0) {
+        featureStatsContainer.innerHTML = "<p>沒有可用的 interaction feature。</p>";
+        return;
+      }
+
+      // 計算每個 feature 在這批 kinase 中的平均值（已是％）
+      const stats = [];
+      for (const f of features) {
+        let sum = 0;
+        let count = 0;
+        for (const r of rows) {
+          const v = Number(r[f]);
+          if (Number.isFinite(v)) {
+            sum += v;
+            count += 1;
+          }
+        }
+        const mean = count > 0 ? sum / count : 0;
+        stats.push({ feature: f, mean });
+      }
+
+      // 依平均值由大到小排序
+      stats.sort((a, b) => b.mean - a.mean);
+
+      const limited = stats.slice(0, maxRows);
+
+      let html = "<table><thead><tr>";
+      html += "<th>Interaction feature</th>";
+      html += "<th>平均發生率（%）</th>";
+      html += "</tr></thead><tbody>";
+
+      for (const item of limited) {
+        html += "<tr>";
+        html += `<td>${escapeHtml(item.feature)}</td>`;
+        html += `<td>${item.mean.toFixed(1)}</td>`;
+        html += "</tr>";
+      }
+
+      html += "</tbody></table>";
+      if (stats.length > maxRows) {
+        html += `<p>（只顯示前 ${maxRows} 個 feature，實際共有 ${stats.length} 個。）</p>`;
+      }
+
+      featureStatsContainer.innerHTML = html;
+    }
+
     function matrixToCsv(rows, features, kinaseKey, collapseMode, rawData, nMetaRows, nMetaCols, ifpStartCol) {
       const lines = [];
 
@@ -1019,7 +1086,6 @@
           if (!Number.isFinite(pos) || pos < 0) continue;
           const typesToCheck = suffix === "HP" ? [1, 2, 3] : [4, 5, 6, 7];
 
-          let allZero = true;
           let anyChecked = false;
 
           for (let idx = 0; idx < ifpNameParts.length; idx++) {
@@ -1034,7 +1100,6 @@
             if (Number.isFinite(bitVal)) {
               anyChecked = true;
               if (bitVal !== 0) {
-                allZero = false;
                 mismatches.push({
                   feature: feat,
                   ifpName: `${info.pos}-${info.type}`,
