@@ -30,7 +30,7 @@
     label {
       font-weight: 600;
     }
-    input[type="number"], select, textarea {
+    input[type="number"], select, textarea, input[type="text"] {
       padding: 0.25rem 0.4rem;
       border-radius: 6px;
       border: 1px solid #ccc;
@@ -139,9 +139,15 @@
   <h1>Kinase Interaction Fingerprint Heatmap</h1>
 
   <div class="panel">
-    <h2>1. 上傳檔案與設定</h2>
+    <h2>1. 上傳 / 載入檔案與設定</h2>
+
+    <p class="muted">
+      預設會自動從 GitHub 載入 IFP Excel 檔（20241001_KLIFS_IFP595_ID.xlsx）與 KLIFS_export.csv。<br>
+      若要測試其他 IFP 檔案，可使用下方「本機上傳」覆蓋。
+    </p>
+
     <div class="field">
-      <label>上傳 KLIFS IFP Excel 檔（.xlsx）</label><br />
+      <label>本機上傳 KLIFS IFP Excel 檔（.xlsx，可選）</label><br />
       <input type="file" id="fileInput" accept=".xlsx" />
     </div>
 
@@ -178,7 +184,28 @@
   </div>
 
   <div class="panel">
-    <h2>2. 選擇要畫圖的 kinase</h2>
+    <h2>2. 篩選與選擇要畫圖的 kinase</h2>
+
+    <div class="flex-row">
+      <div class="field">
+        <label for="familyFilter">篩選 Family</label><br />
+        <select id="familyFilter">
+          <option value="">全部 family</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="groupFilter">篩選 Group</label><br />
+        <select id="groupFilter">
+          <option value="">全部 group</option>
+        </select>
+      </div>
+    </div>
+    <p class="muted">
+      說明：若選擇 family / group，下方表格與 heatmap 只會顯示符合條件的 kinase。<br>
+      右側「已選擇的 kinase」會再進一步縮小範圍（交集）。
+    </p>
+
     <div class="dual-list-container">
       <div class="dual-list-column" style="flex:1;">
         <label>未選擇的 kinase</label>
@@ -205,39 +232,38 @@
     <div id="tableContainer"></div>
   </div>
 
- <div class="panel">
-  <h2>4. Heatmap 預覽與下載</h2>
+  <div class="panel">
+    <h2>4. Heatmap 預覽與下載</h2>
 
-  <div class="flex-row">
-    <div class="field">
-      <label for="heatmapWidth">Heatmap 寬度（px）</label><br />
-      <input type="number" id="heatmapWidth" value="1200" min="400" max="4000" />
-    </div>
-    <div class="field">
-      <label for="heatmapHeight">Heatmap 高度（px）</label><br />
-      <input type="number" id="heatmapHeight" value="600" min="300" max="3000" />
-    </div>
-  <div class="flex-row" style="align-items:flex-end;">
-    <div class="field">
-      <label for="csvFilename">結果檔案名稱（CSV）</label><br />
-      <input type="text" id="csvFilename" value="kinase_interaction_frequency.csv" />
-    </div>
-  
-    <button id="downloadExcelBtn" disabled style="margin-top:0;">下載 CSV</button>
-  
-    <div class="field">
-      <label for="pngFilename">圖檔名稱（PNG）</label><br />
-      <input type="text" id="pngFilename" value="kinase_heatmap.png" />
-    </div>
-  
-    <button id="downloadPngBtn" disabled style="margin-top:0;">下載 PNG</button>
-  </div>
-  </div>
+    <div class="flex-row">
+      <div class="field">
+        <label for="heatmapWidth">Heatmap 寬度（px）</label><br />
+        <input type="number" id="heatmapWidth" value="1200" min="400" max="4000" />
+      </div>
+      <div class="field">
+        <label for="heatmapHeight">Heatmap 高度（px）</label><br />
+        <input type="number" id="heatmapHeight" value="600" min="300" max="3000" />
+      </div>
 
-  <div id="heatmap"></div>
-  <button id="downloadExcelBtn" disabled>下載結果 Excel（CSV）</button>
-  <button id="downloadPngBtn" disabled>下載 heatmap 圖檔（PNG）</button>
-</div>
+      <div class="flex-row" style="align-items:flex-end;">
+        <div class="field">
+          <label for="csvFilename">結果檔案名稱（CSV）</label><br />
+          <input type="text" id="csvFilename" value="kinase_interaction_frequency.csv" />
+        </div>
+
+        <button id="downloadExcelBtn" disabled style="margin-top:0;">下載 CSV</button>
+
+        <div class="field">
+          <label for="pngFilename">圖檔名稱（PNG）</label><br />
+          <input type="text" id="pngFilename" value="kinase_heatmap.png" />
+        </div>
+
+        <button id="downloadPngBtn" disabled style="margin-top:0;">下載 PNG</button>
+      </div>
+    </div>
+
+    <div id="heatmap"></div>
+  </div>
 
   <div class="panel">
     <h2>5. Double-check 工具</h2>
@@ -260,11 +286,23 @@
   </div>
 
   <script>
+    // ===== GitHub 檔案 URL（使用 raw.githubusercontent.com）=====
+    const KLIFS_IFP_XLSX_URL =
+      "https://raw.githubusercontent.com/CharlieYang-gif/KLIFS_heatmap/main/20241001_KLIFS_IFP595_ID.xlsx";
+    const KLIFS_META_CSV_URL =
+      "https://raw.githubusercontent.com/CharlieYang-gif/KLIFS_heatmap/main/KLIFS_export.csv";
+
+    // ===== 主要資料結構 =====
     let rawData = null;              // 2D array from Excel
     let kinaseFreqMatrix = null;     // Array of row objects: {kinase: ..., feature1: ..., ...}
     let featureNames = [];           // feature columns
     let kinaseNames = [];            // all kinases in result
     const kinaseKeyName = "kinase";  // 依你原始欄位第 3 欄是 kinase
+
+    // 來自 KLIFS_export.csv 的 metadata：NAME -> { family, group }
+    let kinaseMetaMap = {};          // { [kinaseName]: { family, group } }
+    let familyList = [];             // unique families
+    let groupList = [];              // unique groups
 
     // 保留一些設定與狀態
     let lastCollapseMode = true;        // true = HP/HB 模式, false = raw bits 模式
@@ -272,6 +310,7 @@
     let lastMetaCols = 5;
     let lastIfpStartCol = 5;
 
+    // ===== DOM 元件 =====
     const fileInput = document.getElementById("fileInput");
     const processBtn = document.getElementById("processBtn");
     const collapseHpHbCheckbox = document.getElementById("collapseHpHb");
@@ -279,12 +318,17 @@
     const metaColsInput = document.getElementById("metaCols");
     const ifpStartColInput = document.getElementById("ifpStartCol");
     const statusText = document.getElementById("statusText");
+
     const availableKinasesSelect = document.getElementById("availableKinases");
     const selectedKinasesSelect = document.getElementById("selectedKinases");
     const kinaseSearchInput = document.getElementById("kinaseSearch");
     const addKinaseBtn = document.getElementById("addKinaseBtn");
     const removeKinaseBtn = document.getElementById("removeKinaseBtn");
     const updatePlotBtn = document.getElementById("updatePlotBtn");
+
+    const familyFilterSelect = document.getElementById("familyFilter");
+    const groupFilterSelect = document.getElementById("groupFilter");
+
     const tableContainer = document.getElementById("tableContainer");
     const downloadExcelBtn = document.getElementById("downloadExcelBtn");
     const downloadPngBtn = document.getElementById("downloadPngBtn");
@@ -298,7 +342,7 @@
     const doubleCheckBtn = document.getElementById("doubleCheckBtn");
     const dcResult = document.getElementById("dcResult");
 
-    // Excel 上傳
+    // ===== Excel 上傳（本機覆蓋 GitHub IFP 檔案）=====
     fileInput.addEventListener("change", (e) => {
       const file = e.target.files[0];
       if (!file) {
@@ -318,14 +362,17 @@
           defval: null
         });
         processBtn.disabled = false;
-        statusText.textContent = " 檔案讀取成功，可以執行分析。";
+        statusText.textContent = " 檔案讀取成功（本機覆蓋 GitHub IFP），可以執行分析。";
       };
       reader.readAsArrayBuffer(file);
     });
 
-    // 主分析按鈕
+    // ===== 主分析按鈕 =====
     processBtn.addEventListener("click", () => {
-      if (!rawData) return;
+      if (!rawData) {
+        statusText.textContent = " 尚未載入 IFP 資料（請確認 GitHub 檔案是否載入成功，或使用本機上傳）。";
+        return;
+      }
       const nMetaRows = parseInt(metaRowsInput.value, 10) || 5;
       const nMetaCols = parseInt(metaColsInput.value, 10) || 5;
       const ifpStartCol = parseInt(ifpStartColInput.value, 10) || 5;
@@ -350,7 +397,9 @@
 
           fillKinaseLists(kinaseNames);
           renderTablePreview(kinaseFreqMatrix, featureNames);
-          drawHeatmap(kinaseFreqMatrix, featureNames, kinaseNames);
+
+          const { rows, names } = getRowsForCurrentSelection();
+          drawHeatmap(rows, featureNames, names);
 
           updatePlotBtn.disabled = false;
           downloadExcelBtn.disabled = false;
@@ -364,11 +413,10 @@
       }, 10);
     });
 
-    // 兩個 list 之間移動
+    // ===== 兩個 list 之間移動 =====
     function moveSelected(fromSelect, toSelect) {
       const selectedOptions = Array.from(fromSelect.selectedOptions);
       selectedOptions.forEach(opt => {
-        // 避免重複
         const exists = Array.from(toSelect.options).some(o => o.value === opt.value);
         if (!exists) {
           const newOpt = document.createElement("option");
@@ -397,13 +445,11 @@
       moveSelected(selectedKinasesSelect, availableKinasesSelect);
     });
 
-    // 搜尋過濾左側列表
+    // 搜尋過濾左側列表（不考慮 family/group，只是單純文字 filter）
     kinaseSearchInput.addEventListener("input", () => {
       if (!kinaseNames || kinaseNames.length === 0) return;
       const query = kinaseSearchInput.value.trim().toLowerCase();
-      // 保留右側已選
       const selectedValues = Array.from(selectedKinasesSelect.options).map(o => o.value);
-      // 重新填左側，過濾 + 排除已選
       availableKinasesSelect.innerHTML = "";
       kinaseNames
         .filter(k => !selectedValues.includes(k))
@@ -420,14 +466,15 @@
       return Array.from(selectedKinasesSelect.options).map(o => o.value);
     }
 
-    // 更新 heatmap 按鈕
+    // ===== 更新 heatmap 按鈕（會套用 family/group & 已選 kinase）=====
     updatePlotBtn.addEventListener("click", () => {
-    if (!kinaseFreqMatrix) return;
-    const { rows, names } = getRowsForCurrentSelection();
-    renderTablePreview(rows, featureNames);
-    drawHeatmap(rows, featureNames, names);
+      if (!kinaseFreqMatrix) return;
+      const { rows, names } = getRowsForCurrentSelection();
+      renderTablePreview(rows, featureNames);
+      drawHeatmap(rows, featureNames, names);
     });
-    
+
+    // heatmap 尺寸變更時即時更新
     function handleHeatmapSizeChange() {
       if (!kinaseFreqMatrix) return;
       const { rows, names } = getRowsForCurrentSelection();
@@ -435,14 +482,34 @@
       drawHeatmap(rows, featureNames, names);
     }
 
-    // 輸入過程就更新（input 比 change 更即時）
     heatmapWidthInput.addEventListener("input", handleHeatmapSizeChange);
     heatmapHeightInput.addEventListener("input", handleHeatmapSizeChange);
-    // 下載結果 CSV
+
+    // ===== family / group 篩選變更時即時更新 =====
+    familyFilterSelect.addEventListener("change", () => {
+      if (!kinaseFreqMatrix) return;
+      const { rows, names } = getRowsForCurrentSelection();
+      renderTablePreview(rows, featureNames);
+      drawHeatmap(rows, featureNames, names);
+    });
+
+    groupFilterSelect.addEventListener("change", () => {
+      if (!kinaseFreqMatrix) return;
+      const { rows, names } = getRowsForCurrentSelection();
+      renderTablePreview(rows, featureNames);
+      drawHeatmap(rows, featureNames, names);
+    });
+
+    // ===== 下載結果 CSV（只輸出目前篩選結果）=====
     downloadExcelBtn.addEventListener("click", () => {
       if (!kinaseFreqMatrix) return;
+      const { rows } = getRowsForCurrentSelection();
+      if (!rows || rows.length === 0) {
+        alert("目前篩選條件下沒有任何 kinase，無法下載 CSV。");
+        return;
+      }
       const csv = matrixToCsv(
-        kinaseFreqMatrix,
+        rows,
         featureNames,
         kinaseKeyName,
         lastCollapseMode,
@@ -463,7 +530,7 @@
       URL.revokeObjectURL(url);
     });
 
-    // 下載 PNG 圖檔
+    // ===== 下載 PNG 圖檔（依目前 heatmap 畫面）=====
     downloadPngBtn.addEventListener("click", () => {
       const size = getHeatmapSize();
       Plotly.toImage("heatmap", {
@@ -486,11 +553,11 @@
         });
     });
 
-    // Double-check
+    // ===== Double-check 工具 =====
     doubleCheckBtn.addEventListener("click", () => {
       dcResult.textContent = "";
       if (!kinaseFreqMatrix || !rawData) {
-        dcResult.textContent = "請先上傳檔案並執行分析。";
+        dcResult.textContent = "請先上傳或載入 IFP 檔案並執行分析。";
         return;
       }
       const ifpRowText = dcIfpNameRow.value.trim();
@@ -620,7 +687,7 @@
             }
           }
 
-  // ⭐ 這裡只改「命名」：真實 position 還是用原本的 0,1,2,...
+          // ⭐ 這裡只改「命名」：真實 position 還是用原本的 0,1,2,...
           const labelPos = pos + 1;      // 0 → 1, 1 → 2, 2 → 3, ...
           obj[`${labelPos}-HP`] = hpValue;
           obj[`${labelPos}-HB`] = hbValue;
@@ -703,6 +770,7 @@
     }
 
     // ---------- UI Helper ----------
+
     function getHeatmapSize() {
       let w = Number(heatmapWidthInput.value);
       let h = Number(heatmapHeightInput.value);
@@ -710,19 +778,42 @@
       if (!Number.isFinite(h) || h <= 0) h = 600;
       return { width: w, height: h };
     }
+
     function getRowsForCurrentSelection() {
       if (!kinaseFreqMatrix || !featureNames) {
         return { rows: [], names: [] };
       }
+
       const selected = getSelectedKinaseNames();
+      const currentFamily = familyFilterSelect.value;
+      const currentGroup = groupFilterSelect.value;
+
+      // 1. 基底集合：若右側有選，就只用那些；否則用全部
+      let baseRows;
       if (selected.length === 0) {
-        return { rows: kinaseFreqMatrix, names: kinaseNames };
+        baseRows = kinaseFreqMatrix.slice();
       } else {
-        const rows = kinaseFreqMatrix.filter(r => selected.includes(r[kinaseKeyName]));
-        const names = rows.map(r => r[kinaseKeyName]);
-        return { rows, names };
+        baseRows = kinaseFreqMatrix.filter((r) => selected.includes(r[kinaseKeyName]));
       }
+
+      // 2. 套用 family / group 篩選（AND 條件：同時選的話要都符合）
+      const filteredRows = baseRows.filter((r) => {
+        const name = r[kinaseKeyName];
+        const meta = kinaseMetaMap[name];
+
+        if (currentFamily) {
+          if (!meta || meta.family !== currentFamily) return false;
+        }
+        if (currentGroup) {
+          if (!meta || meta.group !== currentGroup) return false;
+        }
+        return true;
+      });
+
+      const names = filteredRows.map((r) => r[kinaseKeyName]);
+      return { rows: filteredRows, names };
     }
+
     function fillKinaseLists(kinaseNamesList) {
       availableKinasesSelect.innerHTML = "";
       selectedKinasesSelect.innerHTML = "";
@@ -737,7 +828,7 @@
 
     function renderTablePreview(rows, featureNames, maxRows = 50) {
       if (!rows || rows.length === 0) {
-        tableContainer.innerHTML = "<p>沒有資料可顯示。</p>";
+        tableContainer.innerHTML = "<p>沒有資料可顯示（可能是篩選條件太嚴格）。</p>";
         return;
       }
 
@@ -804,7 +895,7 @@
     function matrixToCsv(rows, features, kinaseKey, collapseMode, rawData, nMetaRows, nMetaCols, ifpStartCol) {
       const lines = [];
 
-      // 若是不整合 HP/HB（raw bits），在最前面保留原始前 5 行
+      // 若是不整合 HP/HB（raw bits），在最前面保留原始前 nMetaRows 行
       if (!collapseMode && rawData) {
         const maxCols = rawData.reduce((m, r) => Math.max(m, r.length), 0);
         for (let i = 0; i < nMetaRows && i < rawData.length; i++) {
@@ -858,7 +949,6 @@
         if (!Number.isFinite(outVal)) continue;
 
         if (Math.abs(outVal) < tol) {
-          // 輸出為 0，檢查原始 row
           const idxInRaw = ifpStartCol + j;
           const bitStr = pdbTokens[idxInRaw];
           const bitVal = Number(bitStr);
@@ -925,7 +1015,7 @@
           if (!Number.isFinite(displayPos)) continue;
           const pos = displayPos - 1;                  // ⭐ 轉回原始 position：0, 1, 2, ...
           const suffix = parts[1]; // "HP" or "HB"
-      
+
           if (!Number.isFinite(pos) || pos < 0) continue;
           const typesToCheck = suffix === "HP" ? [1, 2, 3] : [4, 5, 6, 7];
 
@@ -978,6 +1068,127 @@
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
     }
+
+    // ---------- 從 GitHub 載入 KLIFS_export.csv（NAME/FAMILY/GROUPS）----------
+
+    function splitSimple(line) {
+      // 嘗試用逗號，若欄位數 < 3 就改用 tab
+      let parts = line.split(",");
+      if (parts.length < 3) {
+        parts = line.split("\t");
+      }
+      return parts.map((s) => s.trim());
+    }
+
+    function parseKinaseMetaCsv(text) {
+      const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
+      if (lines.length < 2) return;
+
+      const header = splitSimple(lines[0]);
+      const idxName = header.indexOf("NAME");
+      const idxFamily = header.indexOf("FAMILY");
+      const idxGroup = header.indexOf("GROUPS");
+
+      if (idxName === -1 || idxFamily === -1 || idxGroup === -1) {
+        console.warn("KLIFS_export.csv 標題行未包含 NAME/FAMILY/GROUPS，請確認欄位名稱。");
+        return;
+      }
+
+      const famSet = new Set();
+      const grpSet = new Set();
+      kinaseMetaMap = {};
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = splitSimple(lines[i]);
+        if (cols.length <= Math.max(idxName, idxFamily, idxGroup)) continue;
+
+        const name = cols[idxName];
+        const family = cols[idxFamily];
+        const group = cols[idxGroup];
+        if (!name) continue;
+
+        kinaseMetaMap[name] = {
+          family: family || "",
+          group: group || "",
+        };
+        if (family) famSet.add(family);
+        if (group) grpSet.add(group);
+      }
+
+      familyList = Array.from(famSet).sort();
+      groupList = Array.from(grpSet).sort();
+    }
+
+    function fillFamilyGroupSelects() {
+      // Family 下拉
+      familyFilterSelect.innerHTML = `<option value="">全部 family</option>`;
+      familyList.forEach((fam) => {
+        const opt = document.createElement("option");
+        opt.value = fam;
+        opt.textContent = fam;
+        familyFilterSelect.appendChild(opt);
+      });
+
+      // Group 下拉
+      groupFilterSelect.innerHTML = `<option value="">全部 group</option>`;
+      groupList.forEach((grp) => {
+        const opt = document.createElement("option");
+        opt.value = grp;
+        opt.textContent = grp;
+        groupFilterSelect.appendChild(opt);
+      });
+    }
+
+    function loadKinaseMetaFromGithub() {
+      fetch(KLIFS_META_CSV_URL)
+        .then((res) => {
+          if (!res.ok) throw new Error("載入 KLIFS_export.csv 失敗");
+          return res.text();
+        })
+        .then((text) => {
+          parseKinaseMetaCsv(text);
+          fillFamilyGroupSelects();
+          console.log("KLIFS_export.csv 載入完成，找到 family/group 資訊筆數：", Object.keys(kinaseMetaMap).length);
+        })
+        .catch((err) => {
+          console.error(err);
+          // 不阻斷主流程，只是在 console 提醒
+        });
+    }
+
+    // ---------- 從 GitHub 載入 IFP Excel ----------
+
+    function loadIfpFromGithub() {
+      statusText.textContent = " 從 GitHub 讀取 IFP 檔案中...";
+      fetch(KLIFS_IFP_XLSX_URL)
+        .then((res) => {
+          if (!res.ok) throw new Error("載入 IFP Excel 失敗");
+          return res.arrayBuffer();
+        })
+        .then((buffer) => {
+          const data = new Uint8Array(buffer);
+          const workbook = XLSX.read(data, { type: "array" });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          rawData = XLSX.utils.sheet_to_json(worksheet, {
+            header: 1,
+            raw: true,
+            defval: null,
+          });
+          processBtn.disabled = false;
+          statusText.textContent = " GitHub IFP 檔案讀取成功，可以執行分析。";
+        })
+        .catch((err) => {
+          console.error(err);
+          statusText.textContent =
+            " 從 GitHub 載入 IFP 檔案失敗，請確認 URL 是否正確，或改用本機上傳。";
+        });
+    }
+
+    // ---------- 頁面初始化 ----------
+
+    loadKinaseMetaFromGithub();
+    loadIfpFromGithub();
   </script>
 </body>
 </html>
