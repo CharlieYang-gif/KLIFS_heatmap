@@ -80,7 +80,20 @@
         <input type="text" id="kinaseSearch" placeholder="輸入關鍵字篩選名稱..." />
       </div>
     </div>
+    <div class="flex-row" style="margin-top:12px;">
+      <div class="field">
+        <label>Heatmap 顯示層級</label>
+        <select id="viewModeSelect">
+          <option value="kinase">Kinase</option>
+          <option value="family">Family 平均</option>
+          <option value="group">Group 平均</option>
+        </select>
+      </div>
 
+      <div class="muted" style="align-self:center;">
+        切換後，heatmap / 表格匯出會依目前層級輸出。
+      </div>
+    </div>
     <p class="muted">
       篩選邏輯：Family/Group 篩選與「已選 kinase」取交集。<br>
       若右側「已選清單」為空，代表使用「全部 kinase」（再套 family/group 篩選）。
@@ -179,7 +192,8 @@
     const downloadCsvBtn = document.getElementById("downloadCsvBtn");
     const downloadPngBtn = document.getElementById("downloadPngBtn");
     const featureStatsContainer = document.getElementById("featureStatsContainer");
-
+    const viewModeSelect = document.getElementById("viewModeSelect");
+    let viewMode = "kinase";
     // ===== helpers =====
     function escapeHtml(str) {
       return String(str)
@@ -280,7 +294,58 @@
 
       return { rows: filtered, names: filtered.map(r => r[kinaseKeyName]) };
     }
+    function aggregateByMeta(rows, features, mode /* "family" | "group" */) {
+      const key = mode === "family" ? "family" : "group";
 
+      const buckets = new Map(); // keyVal -> rows[]
+      for (const r of rows) {
+        const name = r[kinaseKeyName];
+        const meta = kinaseMetaMap[name];
+        const keyVal = (meta && meta[key]) ? meta[key] : "(Unknown)";
+        if (!buckets.has(keyVal)) buckets.set(keyVal, []);
+        buckets.get(keyVal).push(r);
+      }
+
+      const out = [];
+      for (const [keyVal, bucketRows] of buckets.entries()) {
+        const agg = {};
+        agg[kinaseKeyName] = keyVal;
+
+        const nKinases = bucketRows.length;
+        const nStruct = bucketRows.reduce((acc, r) => acc + (Number(r.__n) || 0), 0);
+
+        agg.__n = nStruct;
+        agg.__label = `${keyVal} (${nKinases})`;
+
+        for (const f of features) {
+          let sum = 0, count = 0;
+          for (const r of bucketRows) {
+            const v = Number(r[f]);
+            if (Number.isFinite(v)) { sum += v; count++; }
+          }
+          agg[f] = count > 0 ? sum / count : 0;
+        }
+        out.push(agg);
+      }
+
+      out.sort((a,b) => String(a[kinaseKeyName]).localeCompare(String(b[kinaseKeyName])));
+      return out;
+    }
+
+    function getRowsForCurrentView() {
+      const { rows } = getRowsForCurrentSelection();
+      if (!rows || rows.length === 0) return { rows: [], names: [] };
+
+      if (viewMode === "family") {
+        const agg = aggregateByMeta(rows, featureNames, "family");
+        return { rows: agg, names: agg.map(r => r.__label ?? r[kinaseKeyName]) };
+      }
+      if (viewMode === "group") {
+        const agg = aggregateByMeta(rows, featureNames, "group");
+        return { rows: agg, names: agg.map(r => r.__label ?? r[kinaseKeyName]) };
+      }
+      return { rows, names: rows.map(r => r.__label ?? r[kinaseKeyName]) };
+    }
     // ===== core computation =====
 
     // HP/HB collapse
@@ -385,59 +450,64 @@
     }
 
     // compute per-kinase frequency matrix, with STRICT feature filtering
-    function computeKinaseFrequency(structRows, kinaseColName, collapseMode) {
-      const groups = {};
-      for (const row of structRows) {
-        const k = row[kinaseColName];
-        if (k == null || k === "") continue;
-        if (!groups[k]) groups[k] = [];
-        groups[k].push(row);
+function computeKinaseFrequency(structRows, kinaseColName, collapseMode) {
+  const groups = {};
+  for (const row of structRows) {
+    const k = row[kinaseColName];
+    if (k == null || k === "") continue;
+    if (!groups[k]) groups[k] = [];
+    groups[k].push(row);
+  }
+
+  const kinases = Object.keys(groups).sort();
+  const exampleRow = structRows[0] || {};
+  const allKeys = Object.keys(exampleRow);
+
+  // ✅ features only
+  const featureCols = allKeys.filter((key) => {
+    if (!key) return false;
+    if (/^col\d+$/i.test(key)) return false;
+
+    if (collapseMode) return /^\d+\-(HP|HB)$/i.test(key);
+    return /^IFP_/i.test(key);
+  }).sort((a,b)=>{
+    const parse = (s) => {
+      if (/^IFP_/i.test(s)) return { t: 0, p: parseInt(s.replace(/^IFP_/i,""),10)||0, hb:0 };
+      const m = s.match(/^(\d+)\-(HP|HB)$/i);
+      if (m) return { t: 1, p: parseInt(m[1],10)||0, hb: m[2].toUpperCase()==="HB"?1:0 };
+      return { t: 9, p:0, hb:0 };
+    };
+    const A=parse(a), B=parse(b);
+    if (A.t!==B.t) return A.t-B.t;
+    if (A.p!==B.p) return A.p-B.p;
+    return A.hb-B.hb;
+  });
+
+  const resultRows = [];
+  for (const k of kinases) {
+    const rows = groups[k];
+    const outRow = {};
+    outRow[kinaseColName] = k;
+
+    // ✅ 新增：此 kinase 擁有的 structure rows 數量
+    outRow.__n = rows.length;
+
+    // ✅ 新增：預先組出顯示用 label（heatmap y 軸 & 匯出用）
+    outRow.__label = `${k} (${rows.length})`;
+
+    for (const col of featureCols) {
+      let sum = 0, count = 0;
+      for (const r of rows) {
+        const v = Number(r[col]);
+        if (Number.isFinite(v)) { sum += v; count++; }
       }
-
-      const kinases = Object.keys(groups).sort();
-      const exampleRow = structRows[0] || {};
-      const allKeys = Object.keys(exampleRow);
-
-      // ✅ features only
-      const featureCols = allKeys.filter((key) => {
-        if (!key) return false;
-        if (/^col\d+$/i.test(key)) return false;
-
-        if (collapseMode) return /^\d+\-(HP|HB)$/i.test(key);
-        return /^IFP_/i.test(key);
-      }).sort((a,b)=>{
-        const parse = (s) => {
-          if (/^IFP_/i.test(s)) return { t: 0, p: parseInt(s.replace(/^IFP_/i,""),10)||0, hb:0 };
-          const m = s.match(/^(\d+)\-(HP|HB)$/i);
-          if (m) return { t: 1, p: parseInt(m[1],10)||0, hb: m[2].toUpperCase()==="HB"?1:0 };
-          return { t: 9, p:0, hb:0 };
-        };
-        const A=parse(a), B=parse(b);
-        if (A.t!==B.t) return A.t-B.t;
-        if (A.p!==B.p) return A.p-B.p;
-        return A.hb-B.hb;
-      });
-
-      const resultRows = [];
-      for (const k of kinases) {
-        const rows = groups[k];
-        const outRow = {};
-        outRow[kinaseColName] = k;
-
-        for (const col of featureCols) {
-          let sum = 0, count = 0;
-          for (const r of rows) {
-            const v = Number(r[col]);
-            if (Number.isFinite(v)) { sum += v; count++; }
-          }
-          outRow[col] = count > 0 ? (sum / count) * 100 : 0;
-        }
-        resultRows.push(outRow);
-      }
-
-      return { rows: resultRows, kinases, features: featureCols };
+      outRow[col] = count > 0 ? (sum / count) * 100 : 0;
     }
+    resultRows.push(outRow);
+  }
 
+  return { rows: resultRows, kinases, features: featureCols };
+}
     // ===== plotting & stats =====
     function drawHeatmap(rows, features) {
       if (!rows || rows.length === 0) {
@@ -450,7 +520,7 @@
         return Number.isFinite(v) ? v : 0;
       }));
 
-      const y = rows.map(r => r[kinaseKeyName]);
+      const y = rows.map(r => r.__label ?? r[kinaseKeyName]);
       const x = features;
 
       const data = [{
@@ -508,7 +578,9 @@
       lines.push([kinaseKey, ...features].join(","));
       for (const r of rows) {
         const out = [];
-        out.push(`"${String(r[kinaseKey] ?? "").replace(/"/g,'""')}"`);
+        const label = r.__label ?? r[kinaseKey] ?? "";
+        const label = r.__label ?? r[kinaseKey] ?? "";
+        out.push(`"${String(label).replace(/"/g,'""')}"`);
         for (const f of features) {
           const v = Number(r[f]);
           const s = Number.isFinite(v) ? v.toFixed(4) : "";
@@ -684,7 +756,7 @@
 
           fillKinaseLists(kinaseNames);
 
-          const { rows } = getRowsForCurrentSelection();
+          const { rows } = getRowsForCurrentView();
           drawHeatmap(rows, featureNames);
           renderFeatureStats(rows, featureNames);
 
@@ -730,7 +802,7 @@
 
     function reRenderByFilters() {
       if (!kinaseFreqMatrix) return;
-      const { rows } = getRowsForCurrentSelection();
+      const { rows } = getRowsForCurrentView();
       drawHeatmap(rows, featureNames);
       renderFeatureStats(rows, featureNames);
     }
@@ -738,11 +810,14 @@
     updatePlotBtn.addEventListener("click", reRenderByFilters);
     familyFilterSelect.addEventListener("change", reRenderByFilters);
     groupFilterSelect.addEventListener("change", reRenderByFilters);
-
+    viewModeSelect.addEventListener("change", () => {
+      viewMode = viewModeSelect.value || "kinase";
+      reRenderByFilters();
+    });
     // ===== download =====
     downloadCsvBtn.addEventListener("click", () => {
       if (!kinaseFreqMatrix) return;
-      const { rows } = getRowsForCurrentSelection();
+      const { rows } = getRowsForCurrentView();
       if (!rows || rows.length === 0) { alert("目前篩選條件下沒有 kinase。"); return; }
 
       const csv = matrixToCsv(rows, featureNames, kinaseKeyName);
