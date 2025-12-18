@@ -2,14 +2,14 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <title>Kinase IFP Heatmap Tool_V3 (Auto-detect)</title>
+  <title>Kinase IFP Heatmap Tool_V3_Final</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem 2rem; background: #f5f5f5; color: #333; }
     .panel { background: #fff; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    h1 { color: #1f7ae0; }
+    h1 { color: #1f7ae0; margin-top: 0; }
     .flex-row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; }
     .field { margin-bottom: 0.5rem; }
     label { font-weight: 600; display: block; margin-bottom: 4px; }
@@ -23,8 +23,8 @@
     th { background: #f8f9fa; position: sticky; top: 0; }
     .dual-list-container { display: flex; gap: 1rem; margin-top: 1rem; }
     .dual-list-column { flex: 1; display: flex; flex-direction: column; }
-    .dual-list-select { min-height: 200px; }
-    .status-msg { font-weight: bold; margin-left: 10px; }
+    .dual-list-select { min-height: 250px; width: 100%; }
+    .status-msg { font-weight: bold; margin-left: 10px; color: #1f7ae0; }
     .muted { color: #666; font-size: 0.85rem; margin-top: 5px; }
   </style>
 </head>
@@ -36,7 +36,7 @@
     <h2>1. 載入資料</h2>
     <div class="flex-row">
       <div class="field">
-        <label>上傳新版 Excel (.xlsx)</label>
+        <label>上傳 Excel (.xlsx)</label>
         <input type="file" id="fileInput" accept=".xlsx" />
       </div>
       <div class="field">
@@ -44,12 +44,12 @@
         <input type="number" id="metaRows" value="5" min="1" />
       </div>
       <button id="processBtn" disabled>執行自動辨識與分析</button>
-      <span id="statusText" class="status-msg">正在載入預設資料...</span>
+      <span id="statusText" class="status-msg">初始化資源中...</span>
     </div>
-    <div class="muted">💡 程式會自動尋找標題包含 "IFP" 的欄位，不論位置在那裡。</div>
     <div class="field" style="margin-top:10px;">
       <input type="checkbox" id="collapseHpHb" checked />
       <label style="display:inline;" for="collapseHpHb">整合 IFP 1-3 (HP) 與 4-7 (HB)</label>
+      <div class="muted">勾選：顯示 1-HP, 1-HB | 取消：顯示原始格式 (1-1, 1-2...)</div>
     </div>
   </div>
 
@@ -58,11 +58,11 @@
     <div class="flex-row">
       <div class="field">
         <label>Family 篩選</label>
-        <select id="familyFilter"><option value="">全部</option></select>
+        <select id="familyFilter" style="min-width: 150px;"><option value="">全部</option></select>
       </div>
       <div class="field">
         <label>Group 篩選</label>
-        <select id="groupFilter"><option value="">全部</option></select>
+        <select id="groupFilter" style="min-width: 150px;"><option value="">全部</option></select>
       </div>
     </div>
     
@@ -86,19 +86,18 @@
 
   <div class="panel">
     <div class="flex-row" style="justify-content: space-between;">
-      <h2>3. Heatmap 與數據下載</h2>
+      <h2>3. Heatmap 與數據統計</h2>
       <div>
         <button id="downloadCsvBtn" disabled>下載目前資料 (CSV)</button>
         <button id="downloadPngBtn" disabled>下載圖片 (PNG)</button>
       </div>
     </div>
     <div id="heatmap"></div>
-    <h3>各交互作用特徵 (Feature) 平均發生率</h3>
+    <h3 style="margin-top:20px;">交互作用特徵 (Feature) 平均發生率</h3>
     <div id="featureStatsContainer"></div>
   </div>
 
   <script>
-    // --- 配置與全局變數 ---
     const CONFIG = {
       IFP_XLSX_URL: "https://raw.githubusercontent.com/CharlieYang-gif/KLIFS_heatmap/main/20241001_KLIFS_IFP595_ID.xlsx",
       META_CSV_URL: "https://raw.githubusercontent.com/CharlieYang-gif/KLIFS_heatmap/main/KLIFS_export.csv"
@@ -109,9 +108,8 @@
     let featureNames = [];
     let kinaseNames = [];
     let kinaseMetaMap = {}; 
-    const kinaseKeyName = "kinase"; 
+    let kinaseColIndex = 2; // 預設第三欄
 
-    // --- DOM 元素 ---
     const el = (id) => document.getElementById(id);
     const ui = {
       fileInput: el("fileInput"),
@@ -125,7 +123,7 @@
       heatmap: el("heatmap")
     };
 
-    // --- 核心邏輯：自動偵測 IFP 欄位 ---
+    // 自動偵測包含 "IFP" 的欄位
     function getIfpColumnIndices(headerRow) {
       return headerRow.reduce((acc, cell, idx) => {
         if (cell && String(cell).toUpperCase().includes("IFP")) acc.push(idx);
@@ -133,7 +131,28 @@
       }, []);
     }
 
-    // --- 資料處理 ---
+    // 格式化 Feature 名稱 (0-1 -> 1-1)
+    function formatIfpName(rawName) {
+      if (!rawName || !rawName.includes('-')) return rawName;
+      const parts = rawName.split('-');
+      const pos = parseInt(parts[0]) + 1;
+      return `${pos}-${parts[1]}`;
+    }
+
+    // 排序 Feature (數字優先排序)
+    function sortFeatures(features) {
+      return features.sort((a, b) => {
+        const parse = (s) => {
+          const m = s.match(/^(\d+)-(.*)$/);
+          return m ? [parseInt(m[1]), m[2]] : [Infinity, s];
+        };
+        const [aPos, aType] = parse(a);
+        const [bPos, bType] = parse(b);
+        if (aPos !== bPos) return aPos - bPos;
+        return aType.localeCompare(bType);
+      });
+    }
+
     function processData() {
       if (!rawData) return;
       const nMetaRows = parseInt(el("metaRows").value) || 5;
@@ -141,50 +160,41 @@
       const headerRow = rawData[0];
       const ifpIndices = getIfpColumnIndices(headerRow);
 
+      // 自動尋找 Kinase 名稱欄位
+      const kIdx = headerRow.findIndex(h => h && h.toLowerCase() === 'kinase');
+      kinaseColIndex = kIdx !== -1 ? kIdx : 2;
+
       if (ifpIndices.length === 0) {
-        alert("找不到包含 'IFP' 的欄位！請檢查 Excel 第一列。");
+        alert("找不到包含 'IFP' 的欄位！");
         return;
       }
 
       let processedRows = [];
-      if (collapse) {
-        // HP/HB 整合邏輯 (Position 是第 2 列, Type 是第 3 列)
-        const posRow = rawData[1];
-        const typeRow = rawData[2];
-        const hpTypes = [1, 2, 3], hbTypes = [4, 5, 6, 7];
+      const posRow = rawData[1];
+      const typeRow = rawData[2];
+      const nameRow = rawData[3];
 
-        for (let i = nMetaRows; i < rawData.length; i++) {
-          const row = rawData[i];
-          if (!row[0]) continue;
-          let obj = { kinase: row[2] || "Unknown" }; 
-          
-          ifpIndices.forEach(idx => {
-            const pos = posRow[idx] + 1; // 顯示從 1 開始
+      for (let i = nMetaRows; i < rawData.length; i++) {
+        const row = rawData[i];
+        if (!row || !row[kinaseColIndex]) continue;
+        
+        let obj = { kinase: String(row[kinaseColIndex]) }; 
+        
+        ifpIndices.forEach(idx => {
+          const val = parseInt(row[idx]) || 0;
+          if (collapse) {
+            const pos = parseInt(posRow[idx]) + 1;
             const type = parseInt(typeRow[idx]);
-            const val = parseInt(row[idx]) || 0;
-
-            if (hpTypes.includes(type)) {
-              obj[`${pos}-HP`] = (obj[`${pos}-HP`] || 0) | val;
-            } else if (hbTypes.includes(type)) {
-              obj[`${pos}-HB`] = (obj[`${pos}-HB`] || 0) | val;
-            }
-          });
-          processedRows.push(obj);
-        }
-      } else {
-        // 原始 Bits 模式
-        for (let i = nMetaRows; i < rawData.length; i++) {
-          const row = rawData[i];
-          if (!row[0]) continue;
-          let obj = { kinase: row[2] || "Unknown" };
-          ifpIndices.forEach(idx => {
-            obj[headerRow[idx]] = parseInt(row[idx]) || 0;
-          });
-          processedRows.push(obj);
-        }
+            const key = [1, 2, 3].includes(type) ? `${pos}-HP` : `${pos}-HB`;
+            obj[key] = (obj[key] || 0) | val;
+          } else {
+            const key = formatIfpName(nameRow[idx]);
+            obj[key] = val;
+          }
+        });
+        processedRows.push(obj);
       }
 
-      // 計算頻率
       const grouped = processedRows.reduce((acc, row) => {
         if (!acc[row.kinase]) acc[row.kinase] = [];
         acc[row.kinase].push(row);
@@ -192,7 +202,7 @@
       }, {});
 
       const allFeatures = Object.keys(processedRows[0]).filter(k => k !== 'kinase');
-      featureNames = allFeatures.sort((a,b) => parseInt(a) - parseInt(b));
+      featureNames = sortFeatures(allFeatures);
       
       kinaseFreqMatrix = Object.keys(grouped).map(k => {
         let res = { kinase: k };
@@ -208,17 +218,23 @@
       el("updatePlotBtn").disabled = false;
       el("downloadCsvBtn").disabled = false;
       el("downloadPngBtn").disabled = false;
-      ui.status.textContent = "分析完成！";
+      ui.status.textContent = "分析與標籤格式化完成";
       drawHeatmap();
     }
 
-    // --- UI 更新與事件 ---
     function updateKinaseLists() {
       const query = ui.search.value.toLowerCase();
       const selSet = new Set(Array.from(ui.selected.options).map(o => o.value));
-      
+      const curFam = ui.family.value;
+      const curGrp = ui.group.value;
+
       ui.available.innerHTML = "";
-      kinaseNames.filter(k => !selSet.has(k) && k.toLowerCase().includes(query)).forEach(k => {
+      kinaseNames.forEach(k => {
+        if (selSet.has(k)) return;
+        if (query && !k.toLowerCase().includes(query)) return;
+        const meta = kinaseMetaMap[k] || {};
+        if (curFam && meta.family !== curFam) return;
+        if (curGrp && meta.group !== curGrp) return;
         ui.available.add(new Option(k, k));
       });
     }
@@ -233,7 +249,10 @@
                  (!ui.group.value || meta.group === ui.group.value);
         });
 
-      if (dataRows.length === 0) return;
+      if (dataRows.length === 0) {
+        Plotly.purge(ui.heatmap);
+        return;
+      }
 
       const z = dataRows.map(r => featureNames.map(f => r[f]));
       const y = dataRows.map(r => r.kinase);
@@ -241,17 +260,18 @@
       const trace = {
         z: z, x: featureNames, y: y,
         type: 'heatmap', colorscale: 'Viridis',
-        colorbar: { title: '%' }
+        colorbar: { title: 'Freq %' }
       };
 
       const layout = {
-        title: 'Kinase Interaction Frequency',
-        xaxis: { tickangle: -90, automargin: true },
-        yaxis: { automargin: true },
-        height: Math.max(600, y.length * 20 + 200)
+        title: 'Kinase Interaction Frequency Heatmap',
+        xaxis: { tickangle: -90, automargin: true, title: 'Interaction Feature (Position-Type)' },
+        yaxis: { automargin: true, title: 'Kinase' },
+        height: Math.max(600, y.length * 20 + 200),
+        margin: { t: 50, b: 100 }
       };
 
-      Plotly.newPlot('heatmap', [trace], layout);
+      Plotly.newPlot(ui.heatmap, [trace], layout, {responsive: true});
       renderStats(dataRows);
     }
 
@@ -261,21 +281,61 @@
         return { feature: f, avg: avg };
       }).sort((a,b) => b.avg - a.avg);
 
-      let html = "<table><tr><th>Feature</th><th>Mean %</th></tr>";
-      stats.slice(0, 50).forEach(s => {
+      let html = "<table><tr><th>Interaction Feature</th><th>平均發生率 (Mean %)</th></tr>";
+      stats.slice(0, 100).forEach(s => {
         html += `<tr><td>${s.feature}</td><td>${s.avg.toFixed(1)}%</td></tr>`;
       });
       el("featureStatsContainer").innerHTML = html + "</table>";
     }
 
-    // --- 初始化與檔案讀取 ---
+    // 初始化與檔案解析
+    async function loadResources() {
+      ui.status.textContent = "讀取伺服器資源中...";
+      try {
+        const [ifpRes, metaRes] = await Promise.all([
+          fetch(CONFIG.IFP_XLSX_URL).then(r => r.arrayBuffer()),
+          fetch(CONFIG.META_CSV_URL).then(r => r.text())
+        ]);
+        
+        // 1. 解析 KLIFS_export.csv (修正分隔符號偵測)
+        const delimiter = metaRes.includes('\t') ? '\t' : (metaRes.includes(';') ? ';' : ',');
+        const metaLines = metaRes.split(/\r?\n/).filter(l => l.trim());
+        const header = metaLines[0].split(delimiter).map(s => s.trim().toUpperCase());
+        
+        const iN = header.indexOf("NAME"), iF = header.indexOf("FAMILY"), iG = header.indexOf("GROUPS");
+        const families = new Set(), groups = new Set();
+        
+        metaLines.slice(1).forEach(l => {
+          const cols = l.split(delimiter).map(s => s.trim());
+          if (!cols[iN]) return;
+          kinaseMetaMap[cols[iN]] = { family: cols[iF] || "", group: cols[iG] || "" };
+          if (cols[iF]) families.add(cols[iF]);
+          if (cols[iG]) groups.add(cols[iG]);
+        });
+        
+        // 2. 填充 Family/Group 選單
+        Array.from(families).sort().forEach(f => ui.family.add(new Option(f, f)));
+        Array.from(groups).sort().forEach(g => ui.group.add(new Option(g, g)));
+
+        // 3. 解析 Excel
+        const wb = XLSX.read(ifpRes, {type:'array'});
+        rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1});
+        
+        ui.processBtn.disabled = false;
+        ui.status.textContent = "所有資源載入成功";
+      } catch (e) {
+        console.error(e);
+        ui.status.textContent = "網路資源讀取失敗，請手動上傳 Excel。";
+      }
+    }
+
     ui.fileInput.onchange = (e) => {
       const reader = new FileReader();
       reader.onload = (evt) => {
         const wb = XLSX.read(evt.target.result, {type:'array'});
         rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1});
         ui.processBtn.disabled = false;
-        ui.status.textContent = "本機檔案載入成功";
+        ui.status.textContent = "本機 Excel 已準備就緒";
       };
       reader.readAsArrayBuffer(e.target.files[0]);
     };
@@ -283,6 +343,8 @@
     ui.processBtn.onclick = processData;
     ui.updatePlotBtn.onclick = drawHeatmap;
     ui.search.oninput = updateKinaseLists;
+    ui.family.onchange = updateKinaseLists;
+    ui.group.onchange = updateKinaseLists;
     
     el("addKinaseBtn").onclick = () => {
       Array.from(ui.available.selectedOptions).forEach(o => ui.selected.add(new Option(o.text, o.value)));
@@ -293,58 +355,22 @@
       updateKinaseLists();
     };
 
-    // 下載功能
     el("downloadCsvBtn").onclick = () => {
         let csv = "kinase," + featureNames.join(",") + "\n";
         kinaseFreqMatrix.forEach(r => {
             csv += r.kinase + "," + featureNames.map(f => r[f].toFixed(2)).join(",") + "\n";
         });
-        const blob = new Blob([csv], {type:'text/csv'});
+        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], {type:'text/csv;charset=utf-8'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = "kinase_ifp_frequency.csv"; a.click();
+        a.href = url; a.download = "kinase_ifp_analysis.csv"; a.click();
     };
 
     el("downloadPngBtn").onclick = () => {
-        Plotly.downloadImage('heatmap', {format:'png', filename:'kinase_heatmap'});
+        Plotly.downloadImage(ui.heatmap, {format:'png', filename:'kinase_heatmap', width: 1600, height: 1000});
     };
 
-    // 啟動時自動載入 GitHub 資源
-    async function init() {
-      try {
-        const [ifpRes, metaRes] = await Promise.all([
-          fetch(CONFIG.IFP_XLSX_URL).then(r => r.arrayBuffer()),
-          fetch(CONFIG.META_CSV_URL).then(r => r.text())
-        ]);
-        
-        // 處理 Meta
-        const metaRows = metaRes.split("\n").map(r => r.split(","));
-        const h = metaRows[0];
-        const iN = h.indexOf("NAME"), iF = h.indexOf("FAMILY"), iG = h.indexOf("GROUPS");
-        const families = new Set(), groups = new Set();
-        
-        metaRows.slice(1).forEach(r => {
-          if(!r[iN]) return;
-          kinaseMetaMap[r[iN]] = { family: r[iF], group: r[iG] };
-          if(r[iF]) families.add(r[iF]);
-          if(r[iG]) groups.add(r[iG]);
-        });
-        
-        Array.from(families).sort().forEach(f => ui.family.add(new Option(f, f)));
-        Array.from(groups).sort().forEach(g => ui.group.add(new Option(g, g)));
-
-        // 處理 Excel
-        const wb = XLSX.read(ifpRes, {type:'array'});
-        rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1});
-        
-        ui.processBtn.disabled = false;
-        ui.status.textContent = "GitHub 資料載入成功";
-      } catch (e) {
-        ui.status.textContent = "GitHub 載入失敗，請手動上傳檔案";
-      }
-    }
-
-    init();
+    loadResources();
   </script>
 </body>
 </html>
