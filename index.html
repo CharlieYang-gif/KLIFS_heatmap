@@ -579,7 +579,6 @@ function computeKinaseFrequency(structRows, kinaseColName, collapseMode) {
       for (const r of rows) {
         const out = [];
         const label = r.__label ?? r[kinaseKey] ?? "";
-        const label = r.__label ?? r[kinaseKey] ?? "";
         out.push(`"${String(label).replace(/"/g,'""')}"`);
         for (const f of features) {
           const v = Number(r[f]);
