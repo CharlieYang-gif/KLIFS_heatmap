@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <title>Kinase IFP Heatmap Tool_V3_Final</title>
+  <title>Kinase IFP Heatmap Tool_V4_Final</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -13,88 +13,81 @@
     .flex-row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; }
     .field { margin-bottom: 0.5rem; }
     label { font-weight: 600; display: block; margin-bottom: 4px; }
-    input, select, textarea { padding: 0.5rem; border-radius: 6px; border: 1px solid #ccc; font-size: 0.9rem; }
-    button { padding: 0.6rem 1.2rem; border-radius: 6px; border: none; cursor: pointer; background: #1f7ae0; color: white; font-weight: 600; transition: 0.2s; }
+    select, input, button { padding: 0.6rem; border-radius: 6px; border: 1px solid #ccc; font-size: 0.9rem; }
+    button { cursor: pointer; background: #1f7ae0; color: white; border: none; font-weight: 600; transition: 0.2s; }
     button:hover { background: #155cb0; }
     button:disabled { background: #ccc; cursor: not-allowed; }
+    .dual-list-container { display: flex; gap: 1rem; margin-top: 1rem; }
+    .dual-list-column { flex: 1; display: flex; flex-direction: column; }
+    .dual-list-select { min-height: 300px; width: 100%; overflow-y: auto; }
     #heatmap { width: 100%; min-height: 600px; margin-top: 1rem; border: 1px solid #eee; }
     table { border-collapse: collapse; width: 100%; display: block; max-height: 400px; overflow: auto; border: 1px solid #ddd; }
     th, td { border: 1px solid #ddd; padding: 8px; font-size: 12px; text-align: center; }
     th { background: #f8f9fa; position: sticky; top: 0; }
-    .dual-list-container { display: flex; gap: 1rem; margin-top: 1rem; }
-    .dual-list-column { flex: 1; display: flex; flex-direction: column; }
-    .dual-list-select { min-height: 250px; width: 100%; }
-    .status-msg { font-weight: bold; margin-left: 10px; color: #1f7ae0; }
-    .muted { color: #666; font-size: 0.85rem; margin-top: 5px; }
+    .status-msg { font-weight: bold; margin-left: 10px; color: #e67e22; }
   </style>
 </head>
 <body>
 
-  <h1>Kinase Interaction Fingerprint Heatmap</h1>
+  <h1>Kinase Interaction Heatmap Tool</h1>
 
   <div class="panel">
-    <h2>1. 載入資料</h2>
+    <h2>1. 數據載入與辨識</h2>
     <div class="flex-row">
       <div class="field">
         <label>上傳 Excel (.xlsx)</label>
         <input type="file" id="fileInput" accept=".xlsx" />
       </div>
-      <div class="field">
-        <label>Meta 行數 (標頭)</label>
-        <input type="number" id="metaRows" value="5" min="1" />
-      </div>
-      <button id="processBtn" disabled>執行自動辨識與分析</button>
+      <button id="processBtn" disabled>執行全自動分析</button>
       <span id="statusText" class="status-msg">初始化資源中...</span>
     </div>
     <div class="field" style="margin-top:10px;">
       <input type="checkbox" id="collapseHpHb" checked />
-      <label style="display:inline;" for="collapseHpHb">整合 IFP 1-3 (HP) 與 4-7 (HB)</label>
-      <div class="muted">勾選：顯示 1-HP, 1-HB | 取消：顯示原始格式 (1-1, 1-2...)</div>
+      <label style="display:inline;" for="collapseHpHb">整合 IFP 特徵 (HP/HB 模式)</label>
     </div>
   </div>
 
   <div class="panel">
-    <h2>2. 篩選與選擇 Kinase</h2>
+    <h2>2. Family / Group 篩選與 Kinase 選擇</h2>
     <div class="flex-row">
       <div class="field">
         <label>Family 篩選</label>
-        <select id="familyFilter" style="min-width: 150px;"><option value="">全部</option></select>
+        <select id="familyFilter"><option value="">全部 Family</option></select>
       </div>
       <div class="field">
         <label>Group 篩選</label>
-        <select id="groupFilter" style="min-width: 150px;"><option value="">全部</option></select>
+        <select id="groupFilter"><option value="">全部 Group</option></select>
       </div>
     </div>
     
     <div class="dual-list-container">
       <div class="dual-list-column">
-        <label>可選 Kinase</label>
-        <input type="text" id="kinaseSearch" placeholder="搜尋名稱..." style="margin-bottom:5px;">
+        <label>待選清單 (可用滑鼠點擊或搜尋)</label>
+        <input type="text" id="kinaseSearch" placeholder="輸入關鍵字篩選名稱..." style="margin-bottom:5px;">
         <select id="availableKinases" multiple class="dual-list-select"></select>
       </div>
       <div class="dual-list-column" style="flex:0; justify-content:center; gap:10px;">
-        <button id="addKinaseBtn"> &gt;&gt; </button>
-        <button id="removeKinaseBtn"> &lt;&lt; </button>
+        <button id="addKinaseBtn" title="加入選中項目"> ➔ </button>
+        <button id="removeKinaseBtn" title="移除選中項目"> ⬅ </button>
       </div>
       <div class="dual-list-column">
-        <label>已選 Kinase (Heatmap 顯示對象)</label>
+        <label>已選清單 (將呈現在圖表中)</label>
         <select id="selectedKinases" multiple class="dual-list-select"></select>
       </div>
     </div>
-    <button id="updatePlotBtn" style="margin-top:1rem;" disabled>更新 Heatmap 視圖</button>
+    <button id="updatePlotBtn" style="margin-top:1rem; width:100%;" disabled>更新圖表視圖</button>
   </div>
 
   <div class="panel">
     <div class="flex-row" style="justify-content: space-between;">
-      <h2>3. Heatmap 與數據統計</h2>
+      <h2>3. 分析結果</h2>
       <div>
-        <button id="downloadCsvBtn" disabled>下載目前資料 (CSV)</button>
-        <button id="downloadPngBtn" disabled>下載圖片 (PNG)</button>
+        <button id="downloadCsvBtn" disabled>下載數據 (CSV)</button>
+        <button id="downloadPngBtn" disabled>下載圖檔 (PNG)</button>
       </div>
     </div>
     <div id="heatmap"></div>
-    <h3 style="margin-top:20px;">交互作用特徵 (Feature) 平均發生率</h3>
-    <div id="featureStatsContainer"></div>
+    <div id="featureStatsContainer" style="margin-top:20px;"></div>
   </div>
 
   <script>
@@ -107,106 +100,105 @@
     let kinaseFreqMatrix = null;
     let featureNames = [];
     let kinaseNames = [];
-    let kinaseMetaMap = {}; 
-    let kinaseColIndex = 2; // 預設第三欄
+    let kinaseMetaMap = {}; // { "CAMK2A": { family: "CAMK2", group: "CAMK" } }
 
-    const el = (id) => document.getElementById(id);
     const ui = {
-      fileInput: el("fileInput"),
-      processBtn: el("processBtn"),
-      status: el("statusText"),
-      available: el("availableKinases"),
-      selected: el("selectedKinases"),
-      search: el("kinaseSearch"),
-      family: el("familyFilter"),
-      group: el("groupFilter"),
-      heatmap: el("heatmap")
+      available: document.getElementById("availableKinases"),
+      selected: document.getElementById("selectedKinases"),
+      family: document.getElementById("familyFilter"),
+      group: document.getElementById("groupFilter"),
+      status: document.getElementById("statusText")
     };
 
-    // 自動偵測包含 "IFP" 的欄位
-    function getIfpColumnIndices(headerRow) {
-      return headerRow.reduce((acc, cell, idx) => {
-        if (cell && String(cell).toUpperCase().includes("IFP")) acc.push(idx);
-        return acc;
-      }, []);
+    // 解析 Meta CSV 並強化匹配邏輯
+    function parseMetaCSV(text) {
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) return;
+
+      const delimiter = text.includes('\t') ? '\t' : ',';
+      const header = lines[0].split(delimiter).map(s => s.trim().toUpperCase());
+      
+      const idxN = header.indexOf("NAME"), idxF = header.indexOf("FAMILY"), idxG = header.indexOf("GROUPS");
+      const families = new Set(), groups = new Set();
+
+      lines.slice(1).forEach(l => {
+        const cols = l.split(delimiter).map(s => s.trim());
+        let rawName = cols[idxN];
+        if (!rawName) return;
+
+        // 處理如 "CAMK2A (CaMK2a)" 這種帶括號的名稱，提取主名稱
+        let cleanName = rawName.split('(')[0].trim().toUpperCase();
+        let meta = { family: cols[idxF] || "Other", group: cols[idxG] || "Other" };
+        
+        kinaseMetaMap[cleanName] = meta;
+        kinaseMetaMap[rawName.toUpperCase()] = meta; // 同時保留原名匹配
+
+        if (meta.family) families.add(meta.family);
+        if (meta.group) groups.add(meta.group);
+      });
+
+      // 更新選單
+      updateFilterUI("familyFilter", Array.from(families).sort());
+      updateFilterUI("groupFilter", Array.from(groups).sort());
     }
 
-    // 格式化 Feature 名稱 (0-1 -> 1-1)
-    function formatIfpName(rawName) {
-      if (!rawName || !rawName.includes('-')) return rawName;
-      const parts = rawName.split('-');
-      const pos = parseInt(parts[0]) + 1;
-      return `${pos}-${parts[1]}`;
-    }
-
-    // 排序 Feature (數字優先排序)
-    function sortFeatures(features) {
-      return features.sort((a, b) => {
-        const parse = (s) => {
-          const m = s.match(/^(\d+)-(.*)$/);
-          return m ? [parseInt(m[1]), m[2]] : [Infinity, s];
-        };
-        const [aPos, aType] = parse(a);
-        const [bPos, bType] = parse(b);
-        if (aPos !== bPos) return aPos - bPos;
-        return aType.localeCompare(bType);
+    function updateFilterUI(id, list) {
+      const select = document.getElementById(id);
+      list.forEach(item => {
+        const opt = document.createElement("option");
+        opt.value = item;
+        opt.textContent = item;
+        select.appendChild(opt);
       });
     }
 
-    function processData() {
+    // 數據處理：自動偵測 IFP 欄位與格式化標籤
+    function processExcel() {
       if (!rawData) return;
-      const nMetaRows = parseInt(el("metaRows").value) || 5;
-      const collapse = el("collapseHpHb").checked;
-      const headerRow = rawData[0];
-      const ifpIndices = getIfpColumnIndices(headerRow);
+      const nMetaRows = 5;
+      const collapse = document.getElementById("collapseHpHb").checked;
+      const header = rawData[0];
+      const ifpCols = header.reduce((a, c, i) => (c && String(c).toUpperCase().includes("IFP") ? [...a, i] : a), []);
+      const kIdx = header.findIndex(h => h && h.toLowerCase().includes("kinase")) || 2;
 
-      // 自動尋找 Kinase 名稱欄位
-      const kIdx = headerRow.findIndex(h => h && h.toLowerCase() === 'kinase');
-      kinaseColIndex = kIdx !== -1 ? kIdx : 2;
-
-      if (ifpIndices.length === 0) {
-        alert("找不到包含 'IFP' 的欄位！");
-        return;
-      }
-
-      let processedRows = [];
-      const posRow = rawData[1];
-      const typeRow = rawData[2];
-      const nameRow = rawData[3];
-
+      let tempRows = [];
       for (let i = nMetaRows; i < rawData.length; i++) {
         const row = rawData[i];
-        if (!row || !row[kinaseColIndex]) continue;
+        if (!row || !row[kIdx]) continue;
         
-        let obj = { kinase: String(row[kinaseColIndex]) }; 
+        let kName = String(row[kIdx]).toUpperCase();
+        let obj = { kinase: kName };
         
-        ifpIndices.forEach(idx => {
+        ifpCols.forEach(idx => {
           const val = parseInt(row[idx]) || 0;
           if (collapse) {
-            const pos = parseInt(posRow[idx]) + 1;
-            const type = parseInt(typeRow[idx]);
+            const pos = parseInt(rawData[1][idx]) + 1;
+            const type = parseInt(rawData[2][idx]);
             const key = [1, 2, 3].includes(type) ? `${pos}-HP` : `${pos}-HB`;
             obj[key] = (obj[key] || 0) | val;
           } else {
-            const key = formatIfpName(nameRow[idx]);
-            obj[key] = val;
+            const rawKey = rawData[3][idx]; // IFP_name
+            const pos = parseInt(rawKey.split('-')[0]) + 1;
+            const bit = rawKey.split('-')[1];
+            obj[`${pos}-${bit}`] = val;
           }
         });
-        processedRows.push(obj);
+        tempRows.push(obj);
       }
 
-      const grouped = processedRows.reduce((acc, row) => {
-        if (!acc[row.kinase]) acc[row.kinase] = [];
-        acc[row.kinase].push(row);
-        return acc;
+      // 分組計算頻率
+      const grouped = tempRows.reduce((a, r) => {
+        if (!a[r.kinase]) a[r.kinase] = [];
+        a[r.kinase].push(r);
+        return a;
       }, {});
 
-      const allFeatures = Object.keys(processedRows[0]).filter(k => k !== 'kinase');
-      featureNames = sortFeatures(allFeatures);
+      const features = Object.keys(tempRows[0]).filter(k => k !== 'kinase').sort((a,b) => parseInt(a) - parseInt(b));
+      featureNames = features;
       
       kinaseFreqMatrix = Object.keys(grouped).map(k => {
         let res = { kinase: k };
-        allFeatures.forEach(f => {
+        features.forEach(f => {
           const sum = grouped[k].reduce((s, r) => s + (r[f] || 0), 0);
           res[f] = (sum / grouped[k].length) * 100;
         });
@@ -214,163 +206,97 @@
       });
 
       kinaseNames = Object.keys(grouped).sort();
-      updateKinaseLists();
-      el("updatePlotBtn").disabled = false;
-      el("downloadCsvBtn").disabled = false;
-      el("downloadPngBtn").disabled = false;
-      ui.status.textContent = "分析與標籤格式化完成";
-      drawHeatmap();
+      refreshKinaseList();
+      document.getElementById("updatePlotBtn").disabled = false;
+      ui.status.textContent = "分析完成，請選擇 Kinase。";
     }
 
-    function updateKinaseLists() {
-      const query = ui.search.value.toLowerCase();
-      const selSet = new Set(Array.from(ui.selected.options).map(o => o.value));
-      const curFam = ui.family.value;
-      const curGrp = ui.group.value;
+    function refreshKinaseList() {
+      const search = document.getElementById("kinaseSearch").value.toUpperCase();
+      const fam = ui.family.value;
+      const grp = ui.group.value;
+      const selectedSet = new Set(Array.from(ui.selected.options).map(o => o.value));
 
       ui.available.innerHTML = "";
       kinaseNames.forEach(k => {
-        if (selSet.has(k)) return;
-        if (query && !k.toLowerCase().includes(query)) return;
-        const meta = kinaseMetaMap[k] || {};
-        if (curFam && meta.family !== curFam) return;
-        if (curGrp && meta.group !== curGrp) return;
-        ui.available.add(new Option(k, k));
+        if (selectedSet.has(k)) return;
+        const meta = kinaseMetaMap[k] || { family: "Other", group: "Other" };
+        
+        const matchSearch = !search || k.includes(search);
+        const matchFam = !fam || meta.family === fam;
+        const matchGrp = !grp || meta.group === grp;
+
+        if (matchSearch && matchFam && matchGrp) {
+          ui.available.add(new Option(k, k));
+        }
       });
     }
+
+    // 事件監聽
+    document.getElementById("addKinaseBtn").onclick = () => {
+      Array.from(ui.available.selectedOptions).forEach(o => ui.selected.add(new Option(o.text, o.value)));
+      refreshKinaseList();
+    };
+    document.getElementById("removeKinaseBtn").onclick = () => {
+      Array.from(ui.selected.selectedOptions).forEach(o => o.remove());
+      refreshKinaseList();
+    };
+    document.getElementById("updatePlotBtn").onclick = drawHeatmap;
+    document.getElementById("kinaseSearch").oninput = refreshKinaseList;
+    ui.family.onchange = refreshKinaseList;
+    ui.group.onchange = refreshKinaseList;
 
     function drawHeatmap() {
       const selected = Array.from(ui.selected.options).map(o => o.value);
-      const dataRows = (selected.length > 0 ? 
-        kinaseFreqMatrix.filter(r => selected.includes(r.kinase)) : 
-        kinaseFreqMatrix).filter(r => {
-          const meta = kinaseMetaMap[r.kinase] || {};
-          return (!ui.family.value || meta.family === ui.family.value) &&
-                 (!ui.group.value || meta.group === ui.group.value);
-        });
+      if (selected.length === 0) { alert("請先從左側選擇 Kinase 加入右側已選清單。"); return; }
 
-      if (dataRows.length === 0) {
-        Plotly.purge(ui.heatmap);
-        return;
-      }
-
+      const dataRows = kinaseFreqMatrix.filter(r => selected.includes(r.kinase));
       const z = dataRows.map(r => featureNames.map(f => r[f]));
       const y = dataRows.map(r => r.kinase);
 
-      const trace = {
-        z: z, x: featureNames, y: y,
-        type: 'heatmap', colorscale: 'Viridis',
-        colorbar: { title: 'Freq %' }
+      const data = [{ z: z, x: featureNames, y: y, type: 'heatmap', colorscale: 'Viridis' }];
+      const layout = { 
+        title: 'Kinase Interaction Frequency (%)',
+        xaxis: { tickangle: -90, automargin: true },
+        yaxis: { automargin: true },
+        height: Math.max(600, y.length * 25 + 200)
       };
 
-      const layout = {
-        title: 'Kinase Interaction Frequency Heatmap',
-        xaxis: { tickangle: -90, automargin: true, title: 'Interaction Feature (Position-Type)' },
-        yaxis: { automargin: true, title: 'Kinase' },
-        height: Math.max(600, y.length * 20 + 200),
-        margin: { t: 50, b: 100 }
-      };
-
-      Plotly.newPlot(ui.heatmap, [trace], layout, {responsive: true});
-      renderStats(dataRows);
+      Plotly.newPlot('heatmap', data, layout);
+      document.getElementById("downloadCsvBtn").disabled = false;
+      document.getElementById("downloadPngBtn").disabled = false;
     }
 
-    function renderStats(rows) {
-      const stats = featureNames.map(f => {
-        const avg = rows.reduce((s, r) => s + r[f], 0) / rows.length;
-        return { feature: f, avg: avg };
-      }).sort((a,b) => b.avg - a.avg);
-
-      let html = "<table><tr><th>Interaction Feature</th><th>平均發生率 (Mean %)</th></tr>";
-      stats.slice(0, 100).forEach(s => {
-        html += `<tr><td>${s.feature}</td><td>${s.avg.toFixed(1)}%</td></tr>`;
-      });
-      el("featureStatsContainer").innerHTML = html + "</table>";
-    }
-
-    // 初始化與檔案解析
-    async function loadResources() {
-      ui.status.textContent = "讀取伺服器資源中...";
+    async function init() {
       try {
         const [ifpRes, metaRes] = await Promise.all([
           fetch(CONFIG.IFP_XLSX_URL).then(r => r.arrayBuffer()),
           fetch(CONFIG.META_CSV_URL).then(r => r.text())
         ]);
-        
-        // 1. 解析 KLIFS_export.csv (修正分隔符號偵測)
-        const delimiter = metaRes.includes('\t') ? '\t' : (metaRes.includes(';') ? ';' : ',');
-        const metaLines = metaRes.split(/\r?\n/).filter(l => l.trim());
-        const header = metaLines[0].split(delimiter).map(s => s.trim().toUpperCase());
-        
-        const iN = header.indexOf("NAME"), iF = header.indexOf("FAMILY"), iG = header.indexOf("GROUPS");
-        const families = new Set(), groups = new Set();
-        
-        metaLines.slice(1).forEach(l => {
-          const cols = l.split(delimiter).map(s => s.trim());
-          if (!cols[iN]) return;
-          kinaseMetaMap[cols[iN]] = { family: cols[iF] || "", group: cols[iG] || "" };
-          if (cols[iF]) families.add(cols[iF]);
-          if (cols[iG]) groups.add(cols[iG]);
-        });
-        
-        // 2. 填充 Family/Group 選單
-        Array.from(families).sort().forEach(f => ui.family.add(new Option(f, f)));
-        Array.from(groups).sort().forEach(g => ui.group.add(new Option(g, g)));
-
-        // 3. 解析 Excel
+        parseMetaCSV(metaRes);
         const wb = XLSX.read(ifpRes, {type:'array'});
         rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1});
-        
-        ui.processBtn.disabled = false;
-        ui.status.textContent = "所有資源載入成功";
+        document.getElementById("processBtn").disabled = false;
+        ui.status.textContent = "資源載入成功，可上傳檔案或直接分析。";
       } catch (e) {
-        console.error(e);
-        ui.status.textContent = "網路資源讀取失敗，請手動上傳 Excel。";
+        ui.status.textContent = "網路資源失敗，請手動檢查。";
       }
     }
 
-    ui.fileInput.onchange = (e) => {
+    document.getElementById("fileInput").onchange = (e) => {
       const reader = new FileReader();
       reader.onload = (evt) => {
         const wb = XLSX.read(evt.target.result, {type:'array'});
         rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1});
-        ui.processBtn.disabled = false;
-        ui.status.textContent = "本機 Excel 已準備就緒";
+        document.getElementById("processBtn").disabled = false;
+        ui.status.textContent = "本機檔案上傳成功";
       };
       reader.readAsArrayBuffer(e.target.files[0]);
     };
 
-    ui.processBtn.onclick = processData;
-    ui.updatePlotBtn.onclick = drawHeatmap;
-    ui.search.oninput = updateKinaseLists;
-    ui.family.onchange = updateKinaseLists;
-    ui.group.onchange = updateKinaseLists;
-    
-    el("addKinaseBtn").onclick = () => {
-      Array.from(ui.available.selectedOptions).forEach(o => ui.selected.add(new Option(o.text, o.value)));
-      updateKinaseLists();
-    };
-    el("removeKinaseBtn").onclick = () => {
-      Array.from(ui.selected.selectedOptions).forEach(o => o.remove());
-      updateKinaseLists();
-    };
+    document.getElementById("processBtn").onclick = processExcel;
 
-    el("downloadCsvBtn").onclick = () => {
-        let csv = "kinase," + featureNames.join(",") + "\n";
-        kinaseFreqMatrix.forEach(r => {
-            csv += r.kinase + "," + featureNames.map(f => r[f].toFixed(2)).join(",") + "\n";
-        });
-        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], {type:'text/csv;charset=utf-8'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = "kinase_ifp_analysis.csv"; a.click();
-    };
-
-    el("downloadPngBtn").onclick = () => {
-        Plotly.downloadImage(ui.heatmap, {format:'png', filename:'kinase_heatmap', width: 1600, height: 1000});
-    };
-
-    loadResources();
+    init();
   </script>
 </body>
 </html>
