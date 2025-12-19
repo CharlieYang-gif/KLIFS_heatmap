@@ -974,19 +974,20 @@ function buildFeatureDisplayMapForKlifs(){
    12) Plotly heatmap drawer (two-tone colorscale)
    =========================== */
 function makeTwoToneColorscale(){
-  // Requirement:
-  // - <50 : blue-purple gradient
-  // - >=50: keep orange-red gradient
-  // Use continuous piecewise colorscale with a “hinge” at 0.5
+  // 需求：
+  // - 0% : 深紫
+  // - 接近 50% : 淺藍綠（不要刺眼）
+  // - 50% 以上 : 維持橘紅階
   const t = 0.5;
 
   return [
-    [0.00, "#2c7bb6"], // blue
-    [0.20, "#4b6cb7"],
-    [t - 1e-6, "#7b61a8"], // purple-ish up to just below 50
-    [t, "#fdae61"],        // orange at 50
-    [0.75, "#f46d43"],     // orange-red
-    [1.00, "#d73027"]      // red
+    [0.00, "#2a004f"],          // deep purple
+    [0.18, "#3b1a75"],          // purple
+    [0.35, "#4b3aa0"],          // violet
+    [t - 1e-6, "#9fe8dd"],      // light blue-green near 50 (below)
+    [t, "#fdae61"],             // orange at 50
+    [0.75, "#f46d43"],          // orange-red
+    [1.00, "#d73027"]           // red
   ];
 }
 
@@ -1031,7 +1032,7 @@ runKlifsHeatmapBtn.addEventListener("click", ()=>{
     const fmap = buildFeatureDisplayMapForKlifs();
 
     drawHeatmap("klifsHeatmap", rows, fmap, lastKlifsTitle);
-
+    recomputeCompareStatsIfAvailable();
     // summary
     const picked = getSelectedValues();
     const pickedText = picked.length ? `${picked.length} selected` : "ALL";
@@ -1432,6 +1433,54 @@ function drawMds(vectors, labels){
    - Generates Docking heatmap (separate)
    - Locks KLIFS x-axis to residue labels and redraws KLIFS using last/current selection
    =========================== */
+  function recomputeCompareStatsIfAvailable(){
+  // 只有在已 Compare 過、且 Docking freq 已存在時才重算
+  if (!residueModeActive || !dockFreqRow) return;
+
+  const scope = getScopeForDockAndViewMode();
+  if ((scope.mode==="family" && !scope.family) || (scope.mode==="group" && !scope.group)){
+    summaryInfo.innerHTML =
+      `<span class="danger">已 Compare，但 docking kinase 無法對應 family/group；請改用 viewMode=kinase 或修正 meta 名稱。</span>`;
+    Plotly.purge("diffPlot");
+    Plotly.purge("mdsPlot");
+    return;
+  }
+
+  const klifsFreq = getKlifsFreqRowForScope(scope);
+  if (!klifsFreq){
+    summaryInfo.innerHTML =
+      `<span class="danger">已 Compare，但無法建立 KLIFS scope 平均（docking kinase 不在 KLIFS 且 family/group 也缺失）。</span>`;
+    Plotly.purge("diffPlot");
+    Plotly.purge("mdsPlot");
+    return;
+  }
+
+  // 1) 重新畫 diff
+  drawDiffPlot(dockFreqRow, klifsFreq, residueFeatureMap);
+
+  // 2) 重新算 MDS / PERMANOVA
+  const klifsStruct = getKlifsStructBinaryForScope(scope);
+  const klifsVec = klifsStruct.map(r=>klifsFeatureKeys.map(f=>Number(r[f])?1:0));
+  const dockVec  = dockBinaryRows.map(r=>klifsFeatureKeys.map(f=>Number(r[f])?1:0));
+  const vectors=[], labels=[];
+  for (const v of klifsVec){ vectors.push(v); labels.push("KLIFS"); }
+  for (const v of dockVec){ vectors.push(v); labels.push("Docking"); }
+  const mdsRes = drawMds(vectors, labels);
+
+  const permaText = mdsRes?.perma
+    ? `PERMANOVA F=${mdsRes.perma.F.toFixed(4)}, p=${mdsRes.perma.p.toFixed(4)}`
+    : (mdsRes?.note || "PERMANOVA unavailable");
+
+  // 3) 更新 summary（保留你原先資訊風格）
+  const alignedSid = lastDockAlignmentSid ? lastDockAlignmentSid : "(unknown)";
+  summaryInfo.innerHTML =
+    `Compare：<span class="pill">Docking vs KLIFS</span>　` +
+    `Alignment row：<span class="pill">${alignedSid}</span>　` +
+    `Docking ligands：<span class="pill">${dockFreqRow.__n}</span>　` +
+    `KLIFS structures(scope)：<span class="pill">${klifsStruct.length}</span>　` +
+    `<span class="pill">X-label locked: residue</span><br/>` +
+    `${permaText}`;
+}
 compareBtn.addEventListener("click", ()=>{
   try{
     if (!(metaLoaded && klifsLoaded && alignLoaded && dockLoaded)){
@@ -1548,7 +1597,7 @@ function resetWorkflowState(){
   // reset selections
   viewModeSelect.value = "kinase";
   featureLabelModeSelect.value = "auto";
-  dockKinaseInput.value = "";
+  //dockKinaseInput.value = "";
   dockPdbInput.value = "";
 
   // clear lists (rebuild from data)
