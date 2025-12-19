@@ -120,11 +120,18 @@
     <div class="flex-row" style="margin-top:10px;">
       <div class="field">
         <label>選擇顯示 Family（僅 family view）</label>
-        <select id="singleFamilySelect" disabled><option value="">（尚未載入）</option></select>
-      </div>
-      <div class="field">
-        <label>選擇顯示 Group（僅 group view）</label>
-        <select id="singleGroupSelect" disabled><option value="">（尚未載入）</option></select>
+        <select id="singleFamilySelect" disabled>
+        <label>選擇顯示 Family（僅 family view）</label>
+        <select id="singleFamilySelect" disabled>...</select>
+
+<label style="margin-top:10px;">選擇顯示 Group（僅 group view）</label>
+<select id="singleGroupSelect" disabled>...</select>
+        <option value="">（尚未載入）</option>
+        </select>
+
+        <select id="singleGroupSelect" disabled>
+        <option value="">（尚未載入）</option>
+        </select>
       </div>
     </div>
 
@@ -177,7 +184,7 @@
 
     <hr />
 
-    <h3>(Docking Compare) 差異圖：Docking freq（bar）＋ KLIFS freq（line）＋ Diff（line, y2）</h3>
+    <h3>(Docking Compare) 差異圖：Docking freq（bar）＋ KLIFS freq（bar）＋ Diff（line, y2）</h3>
     <div class="muted small">
       KLIFS freq 的 scope：依 docking kinase 所屬 family/group + 目前 viewMode 自動決定。<br/>
       例：dock=CLK4 且 viewMode=group → KLIFS freq = CMGC 平均。
@@ -258,8 +265,9 @@ let klifsStructBinaryRows=[];   // per-structure 0/1
 let allKinaseNames=[];
 
 // alignment
-let alignmentMapById = new Map(); // structure_ID -> {pos->res}
-let alignmentIds=[];
+let alignmentMapById = new Map();        // structure_ID -> {pos->residueNumber}
+let alignmentIds = [];                   // all structure_ID
+let alignmentKinaseToStructIds = new Map(); // normKinase -> [structure_ID, ...]
 
 // docking
 let dockRaw2D=null;
@@ -362,12 +370,12 @@ function lookupMetaForKinase(kinaseName){
    3) UI locking (input order)
    =========================== */
 function refreshUiLocks(){
-  klifsIfpInput.disabled = !metaLoaded;
-
   const coreReady = metaLoaded && klifsLoaded;
-  alignXlsxInput.disabled = !coreReady;
-  dockXlsxInput.disabled  = !coreReady;
-  dockKinaseInput.disabled = !coreReady;
+  // Strict upload order: A -> B -> C -> D
+  klifsIfpInput.disabled   = !metaLoaded;
+  alignXlsxInput.disabled  = !(metaLoaded && klifsLoaded);
+  dockXlsxInput.disabled   = !(metaLoaded && klifsLoaded && alignLoaded);
+  dockKinaseInput.disabled = !(metaLoaded && klifsLoaded); // 允許先輸入名字，但 Compare 仍會依條件鎖住
 
   viewModeSelect.disabled = !coreReady;
   featureLabelModeSelect.disabled = !coreReady;
@@ -454,13 +462,22 @@ function parseMetaCsv(text){
     const o=document.createElement("option"); o.value=g; o.textContent=g; groupFilterSelect.appendChild(o);
   });
 
-  singleFamilySelect.innerHTML = `<option value="">請選擇 Family</option>`;
+  singleFamilySelect.innerHTML =
+    `<option value="">請選擇 Family</option>` +
+    `<option value="__ALL__">顯示全部 Family</option>`;
   familyList.forEach(f=>{
-    const o=document.createElement("option"); o.value=f; o.textContent=f; singleFamilySelect.appendChild(o);
+    const o=document.createElement("option");
+    o.value=f; o.textContent=f;
+    singleFamilySelect.appendChild(o);
   });
-  singleGroupSelect.innerHTML = `<option value="">請選擇 Group</option>`;
+
+  singleGroupSelect.innerHTML =
+    `<option value="">請選擇 Group</option>` +
+    `<option value="__ALL__">顯示全部 Group</option>`;
   groupList.forEach(g=>{
-    const o=document.createElement("option"); o.value=g; o.textContent=g; singleGroupSelect.appendChild(o);
+    const o=document.createElement("option");
+    o.value=g; o.textContent=g;
+    singleGroupSelect.appendChild(o);
   });
 }
 
@@ -673,38 +690,64 @@ function parseAlignmentXlsx(data2D){
   if (!data2D || data2D.length < 2) throw new Error("alignment xlsx 內容太少");
   const header = (data2D[0] || []).map(safeTrim);
 
-  // col 0 = KLIFS structure_ID, col 1..85 = KLIFS position
-  const posColIdx = new Map();
-  for (let c=1; c<header.length; c++){
-    const p = parseInt(header[c],10);
-    if (Number.isFinite(p) && p>=1 && p<=85) posColIdx.set(p,c);
+  // 支援新格式：kinase / pdb / structure_ID / 1..85
+  const idxKinase = findCol(header, ["kinase"]);
+  const idxPdb = findCol(header, ["pdb"]); // optional
+  const idxStruct = findCol(header, ["structure_id","structure id","structureid","structure_ID","structureId"]);
+
+  if (idxStruct < 0) {
+    throw new Error("alignment xlsx 需包含 structure_ID 欄位（可接受 structure_id/structure_ID 等大小寫）");
   }
-  if (posColIdx.size < 10) throw new Error("alignment header 必須包含 1..85 欄位（首行）");
+  if (idxKinase < 0) {
+    throw new Error("alignment xlsx 需包含 kinase 欄位");
+  }
+
+  // 解析 1..85 欄位位置
+  const posColIdx = new Map();
+  for (let c = 0; c < header.length; c++) {
+    const p = parseInt(header[c], 10);
+    if (Number.isFinite(p) && p >= 1 && p <= 85) posColIdx.set(p, c);
+  }
+  if (posColIdx.size < 10) {
+    throw new Error("alignment header 必須包含 1..85 欄位（首行）");
+  }
 
   alignmentMapById = new Map();
+  alignmentKinaseToStructIds = new Map();
   alignmentIds = [];
 
-  for (let r=1; r<data2D.length; r++){
+  for (let r = 1; r < data2D.length; r++) {
     const row = data2D[r];
-    if (!row || row.every(v=>v==null || String(v).trim()==="")) continue;
+    if (!row || row.every(v => v == null || String(v).trim() === "")) continue;
 
-    const id = safeTrim(row[0]);
-    if (!id) continue;
+    const kinase = safeTrim(row[idxKinase]);
+    const structId = safeTrim(row[idxStruct]);
+    if (!kinase || !structId) continue;
 
     const map = {};
-    for (let p=1; p<=85; p++){
+    for (let p = 1; p <= 85; p++) {
       const c = posColIdx.get(p);
-      const valStr = c==null ? "" : safeTrim(row[c]);
-      if (!valStr || valStr === "_" || valStr === "-") { map[p]=null; continue; }
-      const n = parseInt(valStr,10);
+      const valStr = (c == null) ? "" : safeTrim(row[c]);
+      if (!valStr || valStr === "_" || valStr === "-") { map[p] = null; continue; }
+      const n = parseInt(valStr, 10);
       map[p] = Number.isFinite(n) ? n : null;
     }
 
-    alignmentMapById.set(id, map);
-    alignmentIds.push(id);
+    alignmentMapById.set(structId, map);
+    alignmentIds.push(structId);
+
+    const nk = normalizeNameBasic(kinase);
+    if (!alignmentKinaseToStructIds.has(nk)) alignmentKinaseToStructIds.set(nk, []);
+    alignmentKinaseToStructIds.get(nk).push(structId);
   }
 
-  alignmentIds.sort((a,b)=>String(a).localeCompare(String(b)));
+  alignmentIds.sort((a,b) => String(a).localeCompare(String(b)));
+
+  // 排序每個 kinase 對應的 structure_ID（可預期、穩定）
+  for (const [k, ids] of alignmentKinaseToStructIds.entries()) {
+    ids.sort((a,b) => String(a).localeCompare(String(b)));
+  }
+
   return alignmentIds.length;
 }
 
@@ -831,38 +874,49 @@ function getKlifsHeatmapRows(){
     return base;
   }
 
-  if (viewMode==="family"){
+   if (viewMode==="family"){
     const fam = singleFamilySelect.value;
     if (!fam) return [];
+  
+    if (fam === "__ALL__") {
+      const rows = familyList.map(f => aggregateFreqRowsByScope("family", f));
+      rows.sort((a,b)=>String(a[kinaseKeyName]).localeCompare(String(b[kinaseKeyName])));
+      return rows;
+    }
     return [aggregateFreqRowsByScope("family", fam)];
   }
-
+  
   if (viewMode==="group"){
     const grp = singleGroupSelect.value;
     if (!grp) return [];
+  
+    if (grp === "__ALL__") {
+      const rows = groupList.map(g => aggregateFreqRowsByScope("group", g));
+      rows.sort((a,b)=>String(a[kinaseKeyName]).localeCompare(String(b[kinaseKeyName])));
+      return rows;
+    }
     return [aggregateFreqRowsByScope("group", grp)];
   }
-
-  return [];
+    return [];
 }
 
 /* ===========================
    10) Feature label mapping (KLIFS vs residue)
    =========================== */
 function autoPickAlignmentStructureIdForDockingKinase(dk){
-  // from KLIFS IFP: find any structure_ID for that kinase, then check alignment has it
   const k = safeTrim(dk);
   if (!k) return "";
-  const candidates=[];
-  for (const r of klifsStructBinaryRows){
-    if (safeTrim(r[kinaseKeyName]) === k){
-      const sid = safeTrim(r.structure_ID);
-      if (sid) candidates.push(sid);
-    }
-  }
-  for (const sid of candidates){
+
+  // 先用 alignment 自己的 kinase 欄位做配對（不依賴 KLIFS IFP）
+  const nk = normalizeNameBasic(k);
+  const ids = alignmentKinaseToStructIds.get(nk) || [];
+
+  // 若同一 kinase 在 alignment 有多個 structure_ID，這裡先取第一個（已排序）
+  for (const sid of ids) {
     if (alignmentMapById.has(sid)) return sid;
   }
+
+  // 找不到就回空字串（由上層提示）
   return "";
 }
 
@@ -928,8 +982,25 @@ function drawHeatmap(rows, featureDisplayMap, title){
     return Number.isFinite(v) ? v : 0;
   }));
 
+  const TH = 0.5; // 0.5% threshold
+  const zmax = 100;
+  
+  const colorscale = [
+    [0.0,   "#f7f7f7"],
+    [TH/zmax - 1e-6, "#f7f7f7"],   // 幾乎同色直到 0.5%
+    [TH/zmax, "#9ecae1"],          // 一跨過 0.5% 立刻變色
+    [0.2,   "#6baed6"],
+    [0.4,   "#3182bd"],
+    [0.6,   "#08519c"],
+    [1.0,   "#08306b"]
+  ];
+  
   Plotly.newPlot("heatmap", [{
-    x,y,z, type:"heatmap", colorscale:"Viridis", zmin:0,
+    x,y,z,
+    type:"heatmap",
+    colorscale,
+    zmin:0,
+    zmax,
     colorbar:{ title:"Frequency (%)" }
   }], {
     title,
@@ -1089,7 +1160,17 @@ function getScopeForDockAndViewMode(){
 function getKlifsFreqRowForScope(scope){
   if (scope.mode==="kinase"){
     const row = klifsKinaseFreqRows.find(r=>safeTrim(r[kinaseKeyName])===scope.kinase);
-    return row || null;
+    if (row) return row;
+  
+    // fallback: docking kinase 不在 KLIFS IFP → 用其 meta 推 scope 平均（優先 group/family 看 viewMode）
+    if (viewModeSelect.value === "group" && scope.group)  return aggregateFreqRowsByScope("group", scope.group);
+    if (viewModeSelect.value === "family" && scope.family) return aggregateFreqRowsByScope("family", scope.family);
+  
+    // 若 viewMode 仍是 kinase，但找不到該 kinase，則退回 group > family（若存在）
+    if (scope.group)  return aggregateFreqRowsByScope("group", scope.group);
+    if (scope.family) return aggregateFreqRowsByScope("family", scope.family);
+  
+    return null;
   }
   if (scope.mode==="family"){
     if (!scope.family) return null;
@@ -1136,14 +1217,15 @@ function drawDiffPlot(dockFreq, klifsFreq, fmap){
   const yDiff = items.map(it=>it.diff);
 
   Plotly.newPlot("diffPlot", [
-    { x, y:yDock, type:"bar", name:"Docking freq (%)", yaxis:"y1" },
-    { x, y:yKlifs, type:"scatter", mode:"lines+markers", name:"KLIFS freq (%)", yaxis:"y1" },
-    { x, y:yDiff, type:"scatter", mode:"lines+markers", name:"Diff (Dock - KLIFS)", yaxis:"y2" }
+    { x, y:yDock,  type:"bar", name:"Docking freq (%)", yaxis:"y1" },
+    { x, y:yKlifs, type:"bar", name:"KLIFS freq (%)",  yaxis:"y1" },
+    { x, y:yDiff,  type:"scatter", mode:"lines+markers", name:"Diff (Dock - KLIFS)", yaxis:"y2" }
   ], {
     title:"Docking vs KLIFS (Freq + Diff)",
     xaxis:{ tickangle:-90, title:"Features" },
     yaxis:{ title:"Frequency (%)" },
     yaxis2:{ title:"Diff (%)", overlaying:"y", side:"right" },
+    barmode:"group",
     margin:{ l:80, r:80, t:50, b:170 },
     height: 640,
     legend:{ orientation:"h" }
@@ -1348,7 +1430,12 @@ compareBtn.addEventListener("click", ()=>{
     // auto pick alignment row by docking kinase
     const sid = autoPickAlignmentStructureIdForDockingKinase(dk);
     if (!sid){
-      alert("無法自動配對 alignment row。\n請確認：\n1) KLIFS IFP 中存在該 kinase 名稱\n2) alignment 第一欄的 KLIFS_ID(=structure_ID) 含該 kinase 的 structure_ID");
+     alert(
+        "無法自動配對 alignment row。\n請確認：\n" +
+        "1) alignment xlsx 的 kinase 欄位包含你輸入的 docking kinase 名稱（大小寫/括號差異請調整）\n" +
+        "2) alignment xlsx 的 structure_ID 欄位有值\n" +
+        "3) alignment 具備 1..85 欄位"
+      );
       return;
     }
 
