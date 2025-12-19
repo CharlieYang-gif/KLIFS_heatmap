@@ -596,10 +596,9 @@ klifsIfpInput.addEventListener("change", async (e)=>{
     const structureIdx = findCol(header, ["structure_id","structure id","structureid"]);
     if (kinaseIdx<0) throw new Error("KLIFS IFP 需包含 'kinase' 欄位");
     if (structureIdx<0) throw new Error("KLIFS IFP 需包含 'structure_ID' 欄位（連結 alignment）");
-
-    let pdbIdx = findCol(header, ["pdb"]);
-    if (pdbIdx < 0) pdbIdx = Math.max(structureIdx, kinaseIdx);
-    const nMetaCols = Math.max(pdbIdx + 1, 4);
+  
+    const firstIfpCol = Math.min(...ifpCols);
+    const nMetaCols = Math.max(firstIfpCol, 4); // 保底至少 4 欄，避免極端情況
 
     const build = collapseKlifsToHpHb(klifsRaw2D, nMetaCols, ifpCols);
     klifsFeatureKeys = build.featureKeys.slice();
@@ -818,7 +817,7 @@ function rebuildAvailableSelectedLists(resetSelected=false){
 
 viewModeSelect.addEventListener("change", ()=>{
   // important: only one change binding (no double-trigger)
-  rebuildAvailableSelectedLists(false);
+  rebuildAvailableSelectedLists(true);
   // do NOT auto redraw; user must click "更新 KLIFS Heatmap" per your workflow
 });
 
