@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
   <title>Kinase IFP Heatmap Tool (KLIFS + Docking Compare)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
   <style>
     :root{
       --bg:#f5f5f5;
@@ -19,1814 +20,742 @@
       --danger:#b42318;
       --ok:#2e7d32;
       --pill-bg:#eef4ff;
-      --shadow:0 2px 8px rgba(0,0,0,0.08);
+      --shadow:0 2px 10px rgba(0,0,0,0.08);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
     }
-    body{ font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; padding:16px 24px; background:var(--bg); color:var(--text); }
-    h1{ margin:0 0 12px 0; color:var(--primary); }
-    h2{ margin:0 0 10px 0; }
-    h3{ margin:12px 0 6px 0; }
-    .panel{ background:var(--panel); border-radius:12px; padding:18px 20px; margin-bottom:16px; box-shadow:var(--shadow); border:1px solid #f0f0f0; }
-    .muted{ color:var(--muted); font-size:13px; line-height:1.55; }
-    .small{ font-size:12px; }
-    .status{ font-weight:800; color:#8a5a00; }
-    .pill{ display:inline-block; padding:2px 10px; border-radius:999px; background:var(--pill-bg); color:var(--primary); font-weight:800; font-size:12px; border:1px solid #dbe7ff; }
-    .danger{ color:var(--danger); font-weight:800; }
-    .ok{ color:var(--ok); font-weight:800; }
-    .flex-row{ display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
-    .field{ min-width:260px; }
-    label{ font-weight:800; display:block; margin-bottom:6px; }
-    input[type="file"], input[type="text"], input[type="number"], select, button{
-      border:1px solid #ccc; border-radius:10px; padding:10px; font-size:13px; background:#fff;
-    }
-    button{ background:var(--primary); color:#fff; border:none; font-weight:800; cursor:pointer; }
-    button:hover{ background:var(--primary-dark); }
-    button:disabled{ background:#ccc; cursor:not-allowed; }
-    input:disabled, select:disabled{ background:#f1f1f1; cursor:not-allowed; }
-    hr{ border:0; border-top:1px solid #eee; margin:14px 0; }
 
-    .dual{ display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; }
-    .col{ flex:1; min-width:260px; }
-    .midcol{ min-width:140px; display:flex; flex-direction:column; gap:10px; justify-content:center; }
-    .selectbox{ width:100%; min-height:240px; }
-    .box-note{ border:1px dashed #ddd; border-radius:10px; padding:10px; background:#fafafa; }
-    .btn-secondary{ background:#f3f6ff; color:#1f3e75; border:1px solid #cfe0ff; }
-    .btn-secondary:hover{ background:#e7efff; }
-    .btn-danger{ background:#fff; color:#7a271a; border:1px solid #f2c7c2; }
-    .btn-danger:hover{ background:#fff2f1; }
+    body{
+      margin:0;
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+    }
 
-    #klifsHeatmap, #dockHeatmap, #diffPlot, #mdsPlot, #confusionPlot{
-      width:100%; min-height:520px; margin-top:10px; background:#fff; border:1px solid #eee; border-radius:12px;
+    .wrap{
+      max-width: 1280px;
+      margin: 24px auto 40px;
+      padding: 0 16px;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 18px;
+      align-items: start;
     }
-    #dockHeatmap{
-      border:3px solid var(--border-strong);
-      box-shadow:0 2px 10px rgba(31,122,224,0.12);
+
+    .panel{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
     }
-    details{ border:1px solid #eee; border-radius:10px; padding:10px 12px; background:#fafafa; }
-    summary{ cursor:pointer; font-weight:800; color:#334; outline:none; }
-    .inline{ display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+    .panel-header{
+      padding: 14px 14px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-header h1{
+      font-size: 16px;
+      margin: 0 0 4px;
+      letter-spacing: 0.2px;
+    }
+
+    .panel-header p{
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .panel-body{
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .row{
+      display: grid;
+      gap: 8px;
+    }
+
+    label{
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    input[type="file"], select, input[type="number"], input[type="text"]{
+      width: 100%;
+      padding: 10px 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      font-size: 13px;
+      outline: none;
+    }
+
+    select[multiple]{
+      min-height: 120px;
+      padding: 10px;
+    }
+
+    .hint{
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .inline{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .toggle{
+      display:flex;
+      gap:8px;
+      flex-wrap: wrap;
+    }
+
+    .pill{
+      user-select: none;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+    }
+    .pill.active{
+      background: var(--pill-bg);
+      border-color: var(--border-strong);
+      color: var(--primary-dark);
+      font-weight: 600;
+    }
+
+    .btns{
+      display:flex;
+      gap:10px;
+    }
+
+    button{
+      cursor: pointer;
+      border: 0;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .btn-primary{
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-primary:hover{ background: var(--primary-dark); }
+
+    .btn-ghost{
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .alert{
+      display:none;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(180,35,24,0.25);
+      background: rgba(180,35,24,0.08);
+      color: var(--danger);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .alert.show{ display:block; }
+
+    .status{
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .main{
+      display: grid;
+      gap: 18px;
+    }
+
+    .viz{
+      padding: 12px;
+    }
+
+    .viz .titlebar{
+      display:flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 10px;
+      padding: 8px 10px 12px;
+    }
+
+    .viz .titlebar h2{
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .viz .titlebar .meta{
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 55ch;
+    }
+
+    #heatmap{
+      width: 100%;
+      height: 620px;
+    }
+
+    /* 這個區塊只是用來示意 docking pose 可對齊的下方區域 */
+    .docking-placeholder{
+      border-top: 1px solid var(--border);
+      padding: 12px 10px 14px;
+      display: grid;
+      gap: 8px;
+    }
+    .docking-placeholder .bar{
+      height: 10px;
+      background: linear-gradient(90deg, rgba(31,122,224,0.15), rgba(31,122,224,0));
+      border-radius: 999px;
+    }
+    .docking-placeholder .note{
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 980px){
+      .wrap{ grid-template-columns: 1fr; }
+      #heatmap{ height: 560px; }
+    }
   </style>
 </head>
+
 <body>
-  <h1>Kinase Interaction Heatmap Tool</h1>
-
-  <div class="panel">
-    <h2>1 Data</h2>
-    <div class="muted">
-      Workflow: render KLIFS heatmap, then run Compare to generate Docking heatmap and statistics.
-      Reset clears plots and UI state but keeps loaded files.
-    </div>
-
-    <div class="flex-row" style="margin-top:10px;">
-      <div class="field">
-        <label>Meta CSV with columns NAME FAMILY GROUPS</label>
-        <input type="file" id="metaCsvInput" accept=".csv,.tsv,text/csv,text/tab-separated-values" />
-      </div>
-      <div class="field">
-        <label>KLIFS IFP XLSX</label>
-        <input type="file" id="klifsIfpInput" accept=".xlsx" disabled />
-      </div>
-      <div class="field">
-        <label>Alignment XLSX with columns kinase structure_ID pdb optional and 1..85</label>
-        <input type="file" id="alignXlsxInput" accept=".xlsx" disabled />
-      </div>
-      <div class="field">
-        <label>Docking pose XLSX</label>
-        <input type="file" id="dockXlsxInput" accept=".xlsx" disabled />
+  <div class="wrap">
+    <!-- Left control panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <h1>KLIFS IFP Heatmap Tool</h1>
+        <p>支援 Excel 輸入、PDB 模式篩選、與 docking pose 對齊用的短 y 軸標籤。</p>
       </div>
 
-      <div class="field" style="min-width:360px;">
-        <label>Docking kinase</label>
-        <input type="text" id="dockKinaseInput" placeholder="Example CLK4" disabled />
-      </div>
+      <div class="panel-body">
+        <div id="alert" class="alert"></div>
 
-      <div class="field" style="min-width:340px;">
-        <label>Status</label>
-        <div class="status" id="statusText">Initialize: load Meta CSV</div>
-        <div class="muted small" id="loadInfo" style="margin-top:6px;"></div>
-      </div>
-
-      <div class="field" style="min-width:320px;">
-        <label>Quick actions</label>
-        <div class="inline">
-          <button class="btn-danger" id="resetBtn" disabled>Reset</button>
-        </div>
-      </div>
-    </div>
-
-    <details style="margin-top:12px;">
-      <summary>Advanced</summary>
-      <div class="flex-row" style="margin-top:10px;">
-        <div class="field" style="min-width:320px;">
-          <label>X label mode</label>
-          <select id="featureLabelMode" disabled>
-            <option value="auto">Auto</option>
-            <option value="klifs">KLIFS position</option>
-            <option value="residue">Residue number</option>
-          </select>
-          <div class="muted small">After Compare, residue labels are locked for alignment.</div>
-        </div>
-
-        <div class="field" style="min-width:360px;">
-          <label>Docking PDB override</label>
-          <input type="text" id="dockPdbInput" placeholder="Example 3pix" disabled />
-          <div class="muted small">Used to select the best alignment row when multiple structure_ID exist.</div>
-        </div>
-      </div>
-    </details>
-  </div>
-
-  <div class="panel">
-    <h2>2 KLIFS heatmap</h2>
-    <div class="box-note muted">
-      Select view mode, move items into Selected, then render KLIFS heatmap. Empty selection means all.
-    </div>
-
-    <div class="flex-row" style="margin-top:10px;">
-      <div class="field" style="min-width:300px;">
-        <label>View mode</label>
-        <select id="viewModeSelect" disabled>
-          <option value="kinase">Kinase</option>
-          <option value="family">Family</option>
-          <option value="group">Group</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <button id="runKlifsHeatmapBtn" disabled>Render KLIFS</button>
-      </div>
-
-      <div class="field">
-        <button id="compareBtn" disabled>Compare</button>
-      </div>
-
-      <div class="field" style="min-width:520px;">
-        <div class="muted" id="summaryInfo"></div>
-      </div>
-    </div>
-
-    <div class="dual">
-      <div class="col">
-        <label id="availableLabel">Available</label>
-        <select id="availableList" class="selectbox" multiple disabled></select>
-        <div class="muted small">Double click to move.</div>
-      </div>
-
-      <div class="midcol">
-        <button id="addBtn" disabled>Add</button>
-        <button id="removeBtn" disabled>Remove</button>
-        <button class="btn-secondary" id="clearSelectedBtn" disabled>Clear selection</button>
-      </div>
-
-      <div class="col">
-        <label id="selectedLabel">Selected</label>
-        <select id="selectedList" class="selectbox" multiple disabled></select>
-        <div class="muted small">Double click to move.</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="panel">
-    <h2>3 Results</h2>
-
-    <h3>KLIFS heatmap</h3>
-    <div id="klifsHeatmap"></div>
-
-    <hr/>
-
-    <h3>Docking heatmap</h3>
-    <div id="dockHeatmap"></div>
-
-    <details style="margin-top:12px;" open>
-      <summary>Docking comparison</summary>
-
-      <div class="flex-row" style="margin-top:10px;">
-        <div class="field" style="min-width:320px;">
-          <label>KLIFS positive threshold</label>
-          <input type="number" id="klifsThresholdInput" min="0" max="1" step="0.01" value="0.50" />
-          <div class="muted small">
-            Ground truth uses Docking frequency at least 50 percent. Test positive uses KLIFS frequency at least threshold.
+        <div class="row">
+          <label>上傳 Excel（.xlsx）</label>
+          <input id="file" type="file" accept=".xlsx,.xls" />
+          <div class="hint">
+            預期欄位包含：<span style="font-family:var(--mono)">kinase / pdb / structure_ID / IFP_*</span>（你原本的格式即可）。
           </div>
         </div>
 
-        <div class="field" style="min-width:520px;">
-          <label>Export</label>
+        <div class="row">
+          <label>模式</label>
+          <div class="toggle">
+            <div class="pill active" id="modeKinase">kinase</div>
+            <div class="pill" id="modePdb">pdb</div>
+          </div>
+          <div class="hint">
+            - <b>kinase 模式</b>：y 軸以 kinase 分組呈現<br/>
+            - <b>pdb 模式</b>：y 軸以 pdb（或 structure）呈現，並可強制至少選一個 kinase 作為過濾
+          </div>
+        </div>
+
+        <div class="row">
+          <label>
+            Kinase 篩選（多選）
+            <span class="status" id="kinaseCount">0 selected</span>
+          </label>
+          <select id="kinaseSelect" multiple></select>
+          <div class="hint">
+            <b>PDB 模式下將強制至少選一個 kinase。</b><br/>
+            小技巧：Windows 按住 Ctrl；macOS 按住 Command 可多選。
+          </div>
+        </div>
+
+        <div class="row">
+          <label>Y 軸標籤最大長度（用於對齊 docking pose）</label>
           <div class="inline">
-            <button class="btn-secondary" id="exportExcelBtn" disabled>Export Excel</button>
-            <button class="btn-secondary" id="exportPlotsBtn" disabled>Export plots</button>
+            <input id="yMaxLen" type="number" min="6" max="48" step="1" value="14" />
+            <select id="yShortPolicy">
+              <option value="tail" selected>保留尾端（…XYZ）</option>
+              <option value="head">保留前端（ABC…）</option>
+              <option value="middle">中間截斷（AB…YZ）</option>
+            </select>
           </div>
-          <div class="muted small" id="exportHint" style="margin-top:6px;"></div>
+          <div class="hint">
+            建議 10–18。越短越容易和下方 docking pose 區域視覺對齊。
+          </div>
+        </div>
+
+        <div class="row">
+          <label>Plot 設定</label>
+          <div class="inline">
+            <input id="cellSize" type="number" min="6" max="40" step="1" value="16" />
+            <input id="leftMargin" type="number" min="80" max="260" step="5" value="140" />
+          </div>
+          <div class="hint">
+            <span style="font-family:var(--mono)">cellSize</span> 影響格子大小；
+            <span style="font-family:var(--mono)">leftMargin</span> 影響 y 軸區域寬度（對齊 docking pose 時很關鍵）。
+          </div>
+        </div>
+
+        <div class="btns">
+          <button class="btn-primary" id="renderBtn">Render Heatmap</button>
+          <button class="btn-ghost" id="resetBtn">Reset</button>
+        </div>
+
+        <div class="row">
+          <div class="status" id="status">尚未載入資料</div>
         </div>
       </div>
+    </div>
 
-      <div id="diffPlot"></div>
-      <div style="height:10px;"></div>
-      <div id="mdsPlot"></div>
-      <div style="height:10px;"></div>
-      <div id="confusionPlot"></div>
-    </details>
+    <!-- Right visualization -->
+    <div class="panel main">
+      <div class="viz">
+        <div class="titlebar">
+          <h2>Heatmap</h2>
+          <div class="meta" id="meta"></div>
+        </div>
+        <div id="heatmap"></div>
+
+        <!-- Docking pose placeholder area (align-friendly) -->
+        <div class="docking-placeholder">
+          <div class="bar"></div>
+          <div class="note">
+            下方區塊預留給 docking pose 視覺化（例如 NGL / Mol* / 自製 SVG）。<br/>
+            本版的 y 軸會使用短標籤與固定 left margin，讓 heatmap 更容易和下方 pose 對齊。
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
 <script>
-/* ===========================
-   0 Global + DOM
-   =========================== */
-const statusText = document.getElementById("statusText");
-const loadInfo   = document.getElementById("loadInfo");
-const summaryInfo= document.getElementById("summaryInfo");
-const exportHint = document.getElementById("exportHint");
-
-const metaCsvInput   = document.getElementById("metaCsvInput");
-const klifsIfpInput  = document.getElementById("klifsIfpInput");
-const alignXlsxInput = document.getElementById("alignXlsxInput");
-const dockXlsxInput  = document.getElementById("dockXlsxInput");
-
-const dockKinaseInput= document.getElementById("dockKinaseInput");
-const dockPdbInput   = document.getElementById("dockPdbInput");
-
-const viewModeSelect = document.getElementById("viewModeSelect");
-const featureLabelModeSelect = document.getElementById("featureLabelMode");
-
-const runKlifsHeatmapBtn = document.getElementById("runKlifsHeatmapBtn");
-const compareBtn = document.getElementById("compareBtn");
-const resetBtn   = document.getElementById("resetBtn");
-
-const exportExcelBtn = document.getElementById("exportExcelBtn");
-const exportPlotsBtn = document.getElementById("exportPlotsBtn");
-const klifsThresholdInput = document.getElementById("klifsThresholdInput");
-
-const availableList = document.getElementById("availableList");
-const selectedList  = document.getElementById("selectedList");
-const addBtn = document.getElementById("addBtn");
-const removeBtn = document.getElementById("removeBtn");
-const clearSelectedBtn = document.getElementById("clearSelectedBtn");
-
-const availableLabel = document.getElementById("availableLabel");
-const selectedLabel  = document.getElementById("selectedLabel");
-
-const kinaseKeyName = "kinase";
-
-// load flags
-let metaLoaded=false, klifsLoaded=false, alignLoaded=false, dockLoaded=false;
-
-// meta
-let metaRowsRaw=[];
-let metaNormToRow = new Map();
-let familyList=[], groupList=[];
-
-// KLIFS IFP
-let klifsRaw2D=null;
-let klifsFeatureKeys=[];        // "1-HP","1-HB"... "85-HB"
-let klifsKinaseFreqRows=[];     // per-kinase freq %
-let klifsStructBinaryRows=[];   // per-structure 0/1
-let allKinaseNames=[];
-
-// alignment
-let alignmentMapById = new Map();          // structure_ID -> {pos->residueNumber}
-let alignmentKinaseToStructIds = new Map();// normKinase -> [structure_ID,...]
-let alignmentPdbById = new Map();          // structure_ID -> pdb optional
-
-// docking
-let dockRaw2D=null;
-let dockBinaryRows=[];
-let dockFreqRow=null;
-let lastDockAlignmentSid="";
-
-// workflow
-let viewMode="kinase";
-let featureLabelMode="auto";
-let lastKlifsRows=[];
-let residueModeActive=false;
-let residueFeatureMap = new Map();
-
-// derived compare state
-let lastCompare = {
-  dockingKinase: "",
-  alignmentSid: "",
-  compareMode: "",
-  compareSelectedLabel: "",
-  klifsStructCount: 0,
-  dockingLigCount: 0,
-  permanovaF: null,
-  permanovaP: null,
-  confusion: null,
-};
-
-/* ===========================
-   Helpers
-   =========================== */
-function setStatus(msg){ statusText.textContent = msg; }
-function safeTrim(v){ return (v==null) ? "" : String(v).trim(); }
-function clamp01(x){ x=Number(x); if(!Number.isFinite(x)) return 0.5; return Math.min(1, Math.max(0, x)); }
-
-function nowTag(){
-  const d = new Date();
-  const pad = (n)=>String(n).padStart(2,"0");
-  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-}
-function sanitizeFileToken(s){
-  return safeTrim(s).replace(/[^A-Za-z0-9._-]+/g, "_").replace(/_+/g,"_").replace(/^_+|_+$/g,"");
-}
-function makeBaseExportName(){
-  const dk = sanitizeFileToken(lastCompare.dockingKinase || safeTrim(dockKinaseInput.value) || "Docking");
-  const sel = sanitizeFileToken(lastCompare.compareSelectedLabel || "Selection");
-  return `${dk}__vs__${sel}__${nowTag()}`;
-}
-function downloadBlob(blob, filename){
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-function downloadDataUrl(dataUrl, filename){
-  const a = document.createElement("a");
-  a.href = dataUrl;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
-
-function readXlsxArrayBuffer(buffer){
-  const data = new Uint8Array(buffer);
-  const wb = XLSX.read(data, { type:"array" });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:null });
-}
-
-function parseCsvLoose(text){
-  const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
-  if (lines.length < 2) return { header:[], rows:[] };
-
-  const split = (line) => {
-    const c = line.split(",");
-    const t = line.split("\t");
-    const parts = (t.length > c.length) ? t : c;
-    return parts.map(x => x.trim());
+  /******************************************************************
+   * State
+   ******************************************************************/
+  const state = {
+    mode: "kinase",          // "kinase" | "pdb"
+    rows: [],                // parsed rows (objects)
+    ifpCols: [],             // ["IFP_0","IFP_1",...]
+    kinaseList: [],          // unique kinases
+    pdbList: [],             // unique pdbs / structures
+    loadedFileName: "",
   };
 
-  const header = split(lines[0]);
-  const rows = [];
-  for (let i=1; i<lines.length; i++) rows.push(split(lines[i]));
-  return { header, rows };
-}
+  /******************************************************************
+   * DOM
+   ******************************************************************/
+  const $ = (id) => document.getElementById(id);
 
-function findCol(header, candidates){
-  const lower = header.map(h => safeTrim(h).toLowerCase());
-  for (const cand of candidates){
-    const idx = lower.indexOf(String(cand).toLowerCase());
-    if (idx >= 0) return idx;
+  const fileEl = $("file");
+  const renderBtn = $("renderBtn");
+  const resetBtn = $("resetBtn");
+
+  const modeKinase = $("modeKinase");
+  const modePdb = $("modePdb");
+
+  const kinaseSelect = $("kinaseSelect");
+  const kinaseCount = $("kinaseCount");
+
+  const yMaxLen = $("yMaxLen");
+  const yShortPolicy = $("yShortPolicy");
+  const cellSize = $("cellSize");
+  const leftMargin = $("leftMargin");
+
+  const alertEl = $("alert");
+  const statusEl = $("status");
+  const metaEl = $("meta");
+
+  /******************************************************************
+   * Utilities
+   ******************************************************************/
+  function showAlert(msg){
+    alertEl.textContent = msg;
+    alertEl.classList.add("show");
   }
-  return -1;
-}
-
-/* ===========================
-   Name normalization
-   =========================== */
-function normalizeNameBasic(s){
-  const up = safeTrim(s).toUpperCase();
-  const noParen = up.replace(/\(.*?\)/g, " ");
-  return noParen.replace(/[^A-Z0-9]+/g, "");
-}
-function normalizeNameKeepParenAliases(s){
-  const raw = safeTrim(s);
-  const m = raw.match(/^(.*?)\((.*?)\)\s*$/);
-  if (!m) return { primary: normalizeNameBasic(raw), alias:"" };
-  return { primary: normalizeNameBasic(m[1]), alias: normalizeNameBasic(m[2]) };
-}
-function lookupMetaForKinase(kinaseName){
-  const nk = normalizeNameBasic(kinaseName);
-  let row = metaNormToRow.get(nk);
-  if (row) return { matched:true, FAMILY: row.FAMILY||"", GROUPS: row.GROUPS||"" };
-
-  const parts = normalizeNameKeepParenAliases(kinaseName);
-  row = metaNormToRow.get(parts.primary) || metaNormToRow.get(parts.alias);
-  if (row) return { matched:true, FAMILY: row.FAMILY||"", GROUPS: row.GROUPS||"" };
-
-  return { matched:false, FAMILY:"", GROUPS:"" };
-}
-
-/* ===========================
-   UI locks
-   =========================== */
-function refreshUiLocks(){
-  const coreReady = metaLoaded && klifsLoaded;
-
-  klifsIfpInput.disabled   = !metaLoaded;
-  alignXlsxInput.disabled  = !(metaLoaded && klifsLoaded);
-  dockXlsxInput.disabled   = !(metaLoaded && klifsLoaded && alignLoaded);
-
-  viewModeSelect.disabled  = !coreReady;
-  runKlifsHeatmapBtn.disabled = !coreReady;
-
-  const listReady = coreReady;
-  availableList.disabled = !listReady;
-  selectedList.disabled  = !listReady;
-  addBtn.disabled        = !listReady;
-  removeBtn.disabled     = !listReady;
-  clearSelectedBtn.disabled = !listReady;
-
-  dockKinaseInput.disabled = !(metaLoaded && klifsLoaded && alignLoaded && dockLoaded);
-  dockPdbInput.disabled    = !(metaLoaded && klifsLoaded && alignLoaded && dockLoaded);
-  featureLabelModeSelect.disabled = !coreReady;
-
-  const compareReady = coreReady && alignLoaded && dockLoaded && safeTrim(dockKinaseInput.value)!=="";
-  compareBtn.disabled = !compareReady;
-
-  resetBtn.disabled = !coreReady;
-
-  const canExport = residueModeActive && !!dockFreqRow;
-  exportExcelBtn.disabled = !canExport;
-  exportPlotsBtn.disabled = !canExport;
-
-  loadInfo.innerHTML =
-    `Meta <span class="pill">${metaLoaded?"OK":"Missing"}</span> ` +
-    `KLIFS IFP <span class="pill">${klifsLoaded?"OK":"Missing"}</span> ` +
-    `Alignment <span class="pill">${alignLoaded?"OK":"Missing"}</span> ` +
-    `Docking <span class="pill">${dockLoaded?"OK":"Missing"}</span>`;
-
-  exportHint.textContent = canExport
-    ? "Filenames include docking kinase and current KLIFS selection."
-    : "Run Compare to enable export.";
-}
-
-/* ===========================
-   Meta CSV
-   =========================== */
-function parseMetaCsv(text){
-  const { header, rows } = parseCsvLoose(text);
-  const idxName   = findCol(header, ["name","NAME"]);
-  const idxFamily = findCol(header, ["family","FAMILY"]);
-  const idxGroup  = findCol(header, ["groups","group","GROUPS","GROUP"]);
-  if (idxName<0 || idxFamily<0 || idxGroup<0){
-    throw new Error("Meta CSV must include NAME, FAMILY, GROUPS columns.");
+  function clearAlert(){
+    alertEl.textContent = "";
+    alertEl.classList.remove("show");
+  }
+  function setStatus(msg){
+    statusEl.textContent = msg;
   }
 
-  metaRowsRaw = [];
-  metaNormToRow = new Map();
-  const famSet = new Set();
-  const grpSet = new Set();
-
-  for (const r of rows){
-    if (!r || r.length <= Math.max(idxName, idxFamily, idxGroup)) continue;
-    const NAME = safeTrim(r[idxName]);
-    if (!NAME) continue;
-    const FAMILY = safeTrim(r[idxFamily]);
-    const GROUPS = safeTrim(r[idxGroup]);
-    const rowObj = { NAME, FAMILY, GROUPS };
-    metaRowsRaw.push(rowObj);
-
-    const parts = normalizeNameKeepParenAliases(NAME);
-    if (parts.primary) metaNormToRow.set(parts.primary, rowObj);
-    if (parts.alias) metaNormToRow.set(parts.alias, rowObj);
-
-    if (FAMILY) famSet.add(FAMILY);
-    if (GROUPS) grpSet.add(GROUPS);
+  function uniq(arr){
+    return Array.from(new Set(arr.filter(v => v !== undefined && v !== null && String(v).trim() !== "")));
   }
 
-  familyList = Array.from(famSet).sort((a,b)=>String(a).localeCompare(String(b)));
-  groupList  = Array.from(grpSet).sort((a,b)=>String(a).localeCompare(String(b)));
-}
-
-metaCsvInput.addEventListener("change", async (e)=>{
-  const file = e.target.files?.[0];
-  if (!file) return;
-  try{
-    setStatus("Loading meta CSV...");
-    parseMetaCsv(await file.text());
-    metaLoaded = true;
-    setStatus("Meta CSV loaded. Load KLIFS IFP XLSX.");
-  }catch(err){
-    console.error(err);
-    metaLoaded=false;
-    setStatus("Meta CSV load failed: " + err.message);
-  }finally{
-    refreshUiLocks();
-    rebuildAvailableSelectedLists(true);
-  }
-});
-
-/* ===========================
-   KLIFS IFP load -> HP/HB collapse
-   =========================== */
-const positionRowIndex = 1;
-const ifpTypeRowIndex  = 2;
-const metaRowsCount    = 5;
-
-function detectIfpColumnsFromHeader(data2D){
-  const header = data2D?.[0] || [];
-  const idx=[];
-  for (let c=0;c<header.length;c++){
-    const name = safeTrim(header[c]);
-    if (/^IFP_/i.test(name)) idx.push(c);
-  }
-  idx.sort((a,b)=>a-b);
-  return idx;
-}
-
-function collapseKlifsToHpHb(data2D, nMetaCols, ifpCols){
-  const headerRow = data2D[0] || [];
-  const positionRow = data2D[positionRowIndex] || [];
-  const ifpTypeRow = data2D[ifpTypeRowIndex] || [];
-
-  const hpTypes = new Set([1,2,3]);
-  const hbTypes = new Set([4,5,6,7]);
-
-  const posToHpCols = {};
-  const posToHbCols = {};
-
-  for (const colIdx of ifpCols){
-    const pos = positionRow[colIdx];
-    const t = ifpTypeRow[colIdx];
-    if (pos==null || t==null || pos==="" || t==="") continue;
-    const posInt = parseInt(pos,10);
-    const tInt = parseInt(t,10);
-    if (!Number.isFinite(posInt) || !Number.isFinite(tInt)) continue;
-    if (!posToHpCols[posInt]) posToHpCols[posInt]=[];
-    if (!posToHbCols[posInt]) posToHbCols[posInt]=[];
-    if (hpTypes.has(tInt)) posToHpCols[posInt].push(colIdx);
-    else if (hbTypes.has(tInt)) posToHbCols[posInt].push(colIdx);
+  function getSelectedValues(selectEl){
+    return Array.from(selectEl.selectedOptions).map(o => o.value);
   }
 
-  const allPos0 = Array.from(new Set([
-    ...Object.keys(posToHpCols).map(Number),
-    ...Object.keys(posToHbCols).map(Number),
-  ])).sort((a,b)=>a-b);
+  function shortenLabel(s, maxLen, policy){
+    const str = String(s ?? "");
+    if (maxLen <= 0) return "";
+    if (str.length <= maxLen) return str;
 
-  const metaKeys=[];
-  for (let c=0;c<nMetaCols;c++){
-    const name = safeTrim(headerRow[c]);
-    if (!name) continue;
-    metaKeys.push({idx:c, name});
-  }
+    const ell = "…";
+    if (maxLen <= 1) return ell;
 
-  const structRows=[];
-  for (let r=metaRowsCount; r<data2D.length; r++){
-    const row = data2D[r];
-    if (!row || row.every(v=>v==null || String(v).trim()==="")) continue;
-
-    const obj={};
-    for (const mk of metaKeys) obj[mk.name] = row[mk.idx];
-
-    for (const pos0 of allPos0){
-      const hpCols = posToHpCols[pos0] || [];
-      const hbCols = posToHbCols[pos0] || [];
-      let hp=0, hb=0;
-      for (const idx of hpCols){ const v=Number(row[idx]); if (Number.isFinite(v) && v>0){ hp=1; break; } }
-      for (const idx of hbCols){ const v=Number(row[idx]); if (Number.isFinite(v) && v>0){ hb=1; break; } }
-      const p = pos0 + 1;
-      obj[`${p}-HP`] = hp;
-      obj[`${p}-HB`] = hb;
+    if (policy === "head"){
+      // ABC…
+      return str.slice(0, maxLen - 1) + ell;
     }
-    structRows.push(obj);
-  }
-
-  const featureKeys=[];
-  for (const pos0 of allPos0){
-    const p=pos0+1;
-    featureKeys.push(`${p}-HP`, `${p}-HB`);
-  }
-  return { structRows, featureKeys };
-}
-
-function computeKinaseFreqAndStructBinary(structRows, featureKeys, kinaseColName, structureColName){
-  const groups = new Map();
-  const structBinary = [];
-
-  for (const r of structRows){
-    const k = r[kinaseColName];
-    if (!k) continue;
-    if (!groups.has(k)) groups.set(k, []);
-    groups.get(k).push(r);
-
-    const bin = {};
-    bin[kinaseKeyName] = k;
-    bin.structure_ID = r[structureColName];
-    for (const f of featureKeys) bin[f] = Number(r[f]) ? 1 : 0;
-    structBinary.push(bin);
-  }
-
-  const kinases = Array.from(groups.keys()).sort((a,b)=>String(a).localeCompare(String(b)));
-  const freqRows = [];
-
-  for (const k of kinases){
-    const rows = groups.get(k);
-    const out = {};
-    out[kinaseKeyName]=k;
-    out.__n = rows.length;
-    out.__label = `${k} (n=${rows.length})`;
-    for (const f of featureKeys){
-      let sum=0;
-      for (const r of rows) sum += Number(r[f]) ? 1 : 0;
-      out[f] = rows.length ? (sum/rows.length)*100 : 0;
+    if (policy === "tail"){
+      // …XYZ
+      return ell + str.slice(str.length - (maxLen - 1));
     }
-    freqRows.push(out);
+    // middle: AB…YZ
+    const keep = maxLen - 1;
+    const left = Math.ceil(keep / 2);
+    const right = Math.floor(keep / 2);
+    return str.slice(0, left) + ell + str.slice(str.length - right);
   }
 
-  return { kinases, freqRows, structBinary };
-}
+  function detectColumns(rowObj){
+    const keys = Object.keys(rowObj || {});
+    const ifps = keys.filter(k => /^IFP_/i.test(k)).sort((a,b) => {
+      // numeric-aware sort: IFP_2 before IFP_10
+      const na = Number(String(a).split("_")[1]);
+      const nb = Number(String(b).split("_")[1]);
+      if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+      return a.localeCompare(b);
+    });
+    return ifps;
+  }
 
-klifsIfpInput.addEventListener("change", async (e)=>{
-  const file = e.target.files?.[0];
-  if (!file) return;
-  try{
-    setStatus("Loading KLIFS IFP XLSX...");
-    const buffer = await file.arrayBuffer();
-    klifsRaw2D = readXlsxArrayBuffer(buffer);
+  function safeGet(row, candidates){
+    for (const c of candidates){
+      if (row && row[c] !== undefined && row[c] !== null && String(row[c]).trim() !== "") return row[c];
+    }
+    return "";
+  }
 
-    const header = (klifsRaw2D[0] || []).map(safeTrim);
-    const ifpCols = detectIfpColumnsFromHeader(klifsRaw2D);
-    if (!ifpCols.length) throw new Error("No IFP_ columns found.");
+  /******************************************************************
+   * Mode switching
+   ******************************************************************/
+  function setMode(nextMode){
+    state.mode = nextMode;
+    if (nextMode === "kinase"){
+      modeKinase.classList.add("active");
+      modePdb.classList.remove("active");
+    } else {
+      modePdb.classList.add("active");
+      modeKinase.classList.remove("active");
+    }
+    // 不強迫清空選擇，但 PDB 模式 render 時會 guard
+    clearAlert();
+    updateMeta();
+  }
 
-    const kinaseIdx = findCol(header, ["kinase"]);
-    const structureIdx = findCol(header, ["structure_id","structure id","structureid","structure_ID","structureId"]);
-    if (kinaseIdx<0) throw new Error("KLIFS IFP must include column kinase.");
-    if (structureIdx<0) throw new Error("KLIFS IFP must include column structure_ID.");
+  modeKinase.addEventListener("click", () => setMode("kinase"));
+  modePdb.addEventListener("click", () => setMode("pdb"));
 
-    const firstIfpCol = Math.min(...ifpCols);
-    const nMetaCols = Math.max(firstIfpCol, 4);
+  /******************************************************************
+   * File parsing
+   ******************************************************************/
+  fileEl.addEventListener("change", async (e) => {
+    clearAlert();
+    const file = e.target.files?.[0];
+    if (!file){
+      setStatus("未選擇檔案");
+      return;
+    }
 
-    const build = collapseKlifsToHpHb(klifsRaw2D, nMetaCols, ifpCols);
-    klifsFeatureKeys = build.featureKeys.slice();
+    state.loadedFileName = file.name;
+    setStatus(`讀取檔案中：${file.name}`);
 
-    const structRows = build.structRows.map(r=>{
-      const out = { ...r };
-      out[kinaseKeyName] = r[header[kinaseIdx]];
-      out.structure_ID = r[header[structureIdx]];
-      return out;
+    try{
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: "array" });
+
+      const firstSheetName = wb.SheetNames[0];
+      const ws = wb.Sheets[firstSheetName];
+
+      // defval: keep empty cells
+      const json = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+      if (!json || json.length === 0){
+        state.rows = [];
+        state.ifpCols = [];
+        state.kinaseList = [];
+        state.pdbList = [];
+        rebuildKinaseSelect();
+        setStatus("Excel 沒有可用資料列");
+        return;
+      }
+
+      state.rows = json;
+      state.ifpCols = detectColumns(json[0]);
+
+      // detect kinase / pdb columns (support multiple naming)
+      const kinases = uniq(json.map(r => safeGet(r, ["kinase", "Kinase", "KINASE", "target", "Target"])));
+      const pdbs    = uniq(json.map(r => safeGet(r, ["pdb", "PDB", "structure_ID", "structureId", "Structure_ID", "complex", "Complex"])));
+
+      state.kinaseList = kinases.sort((a,b) => String(a).localeCompare(String(b)));
+      state.pdbList = pdbs.sort((a,b) => String(a).localeCompare(String(b)));
+
+      rebuildKinaseSelect();
+
+      setStatus(`載入完成：${json.length} rows, ${state.ifpCols.length} IFP columns`);
+      updateMeta();
+
+      // 初次載入：直接 render 一次（不做 PDB 模式 guard，因為預設是 kinase 模式）
+      renderHeatmap();
+
+    }catch(err){
+      console.error(err);
+      showAlert(`讀取失敗：${err?.message || err}`);
+      setStatus("讀取失敗");
+    }
+  });
+
+  function rebuildKinaseSelect(){
+    kinaseSelect.innerHTML = "";
+    state.kinaseList.forEach(k => {
+      const opt = document.createElement("option");
+      opt.value = String(k);
+      opt.textContent = String(k);
+      kinaseSelect.appendChild(opt);
+    });
+    updateKinaseCount();
+  }
+
+  kinaseSelect.addEventListener("change", updateKinaseCount);
+  function updateKinaseCount(){
+    const n = getSelectedValues(kinaseSelect).length;
+    kinaseCount.textContent = `${n} selected`;
+  }
+
+  /******************************************************************
+   * Guard: PDB mode must select at least one kinase
+   * - 你提到「想加的話我也可以給你一行 guard」：此處已內建。
+   ******************************************************************/
+  function guardPdbModeSelection(){
+    if (state.mode !== "pdb") return true;
+    const selectedKinases = getSelectedValues(kinaseSelect);
+    if (selectedKinases.length < 1){
+      showAlert("PDB 模式下請至少選擇 1 個 kinase（用來過濾資料）。");
+      return false;
+    }
+    return true;
+  }
+
+  /******************************************************************
+   * Transform data -> matrix for Plotly
+   ******************************************************************/
+  function buildMatrix(){
+    const ifpCols = state.ifpCols;
+    const rows = state.rows;
+
+    // column detection
+    const getKinase = (r) => String(safeGet(r, ["kinase","Kinase","KINASE","target","Target"]) || "");
+    const getPdb    = (r) => String(safeGet(r, ["pdb","PDB","structure_ID","structureId","Structure_ID","complex","Complex"]) || "");
+    const getId     = (r) => String(safeGet(r, ["RowID","rowid","row_id","id","ID","structure_ID","pdb"]) || "");
+
+    const selectedKinases = getSelectedValues(kinaseSelect);
+
+    // 先依 mode + kinase filter 過濾
+    let filtered = rows.slice();
+
+    // 如果有選 kinase（任何模式都可以用），就過濾
+    if (selectedKinases.length > 0){
+      const set = new Set(selectedKinases.map(String));
+      filtered = filtered.filter(r => set.has(getKinase(r)));
+    }
+
+    // y key 決定（kinase 模式：以 kinase；pdb 模式：以 pdb）
+    // 但為了可對齊 docking pose：yLabel 會在後面縮短顯示
+    const yKeyFn = (r) => {
+      if (state.mode === "pdb"){
+        // 優先 pdb；沒有就退 structure_ID；再不行就 RowID
+        const p = getPdb(r);
+        return p || getId(r) || "(unknown)";
+      }
+      // kinase mode
+      return getKinase(r) || "(unknown)";
+    };
+
+    // x labels: IFP columns
+    const x = ifpCols.map(c => c);
+
+    // group rows by yKey
+    const groups = new Map();
+    for (const r of filtered){
+      const yk = yKeyFn(r);
+      if (!groups.has(yk)) groups.set(yk, []);
+      groups.get(yk).push(r);
+    }
+
+    // y ordering: stable sort by yKey
+    const yFull = Array.from(groups.keys()).sort((a,b) => String(a).localeCompare(String(b)));
+
+    // For each y group, aggregate IFP by mean (or max) — here use mean for numeric/boolean-like values
+    // If values are "true/false", "1/0", convert to 1/0
+    function toNum(v){
+      if (v === true) return 1;
+      if (v === false) return 0;
+      const s = String(v).trim().toLowerCase();
+      if (s === "true") return 1;
+      if (s === "false") return 0;
+      const n = Number(s);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    const z = yFull.map(yk => {
+      const list = groups.get(yk) || [];
+      return ifpCols.map(col => {
+        if (list.length === 0) return 0;
+        let sum = 0;
+        for (const r of list) sum += toNum(r[col]);
+        return sum / list.length;
+      });
     });
 
-    const calc = computeKinaseFreqAndStructBinary(structRows, klifsFeatureKeys, kinaseKeyName, "structure_ID");
-    allKinaseNames = calc.kinases.slice();
-    klifsKinaseFreqRows = calc.freqRows.slice();
-    klifsStructBinaryRows = calc.structBinary.slice();
+    // y short labels for display (align docking pose)
+    const maxLen = Number(yMaxLen.value || 14);
+    const policy = yShortPolicy.value || "tail";
+    const yShort = yFull.map(v => shortenLabel(v, maxLen, policy));
 
-    klifsLoaded = true;
-    setStatus("KLIFS IFP loaded. Load alignment to enable Compare.");
-  }catch(err){
-    console.error(err);
-    klifsLoaded=false;
-    setStatus("KLIFS IFP load failed: " + err.message);
-  }finally{
-    refreshUiLocks();
-    rebuildAvailableSelectedLists(true);
+    // hover text: show full y + count
+    const hoverY = yFull.map(v => `${v} (n=${(groups.get(v)||[]).length})`);
+
+    return { x, yFull, yShort, hoverY, z, filteredCount: filtered.length, groupCount: yFull.length };
   }
-});
 
-/* ===========================
-   Alignment load
-   =========================== */
-function parseAlignmentXlsx(data2D){
-  if (!data2D || data2D.length < 2) throw new Error("Alignment sheet is empty.");
-  const header = (data2D[0] || []).map(safeTrim);
+  /******************************************************************
+   * Render Plotly heatmap
+   ******************************************************************/
+  function renderHeatmap(){
+    clearAlert();
 
-  const idxKinase = findCol(header, ["kinase"]);
-  const idxPdb    = findCol(header, ["pdb"]);
-  const idxStruct = findCol(header, ["structure_id","structure id","structureid","structure_ID","structureId"]);
-
-  if (idxStruct < 0) throw new Error("Alignment must include structure_ID.");
-  if (idxKinase < 0) throw new Error("Alignment must include kinase.");
-
-  const posColIdx = new Map();
-  for (let c = 0; c < header.length; c++) {
-    const p = parseInt(header[c], 10);
-    if (Number.isFinite(p) && p >= 1 && p <= 85) posColIdx.set(p, c);
-  }
-  if (posColIdx.size < 10) throw new Error("Alignment header must include 1..85 columns.");
-
-  alignmentMapById = new Map();
-  alignmentKinaseToStructIds = new Map();
-  alignmentPdbById = new Map();
-
-  let n=0;
-  for (let r = 1; r < data2D.length; r++) {
-    const row = data2D[r];
-    if (!row || row.every(v => v == null || String(v).trim() === "")) continue;
-
-    const kinase = safeTrim(row[idxKinase]);
-    const structId = safeTrim(row[idxStruct]);
-    if (!kinase || !structId) continue;
-
-    const map = {};
-    for (let p = 1; p <= 85; p++) {
-      const c = posColIdx.get(p);
-      const valStr = (c == null) ? "" : safeTrim(row[c]);
-      if (!valStr || valStr === "_" || valStr === "-") { map[p] = null; continue; }
-      const num = parseInt(valStr, 10);
-      map[p] = Number.isFinite(num) ? num : null;
+    if (!state.rows || state.rows.length === 0){
+      showAlert("尚未載入資料。請先上傳 Excel。");
+      return;
+    }
+    if (!state.ifpCols || state.ifpCols.length === 0){
+      showAlert("找不到 IFP_* 欄位。請確認 Excel 欄位名稱。");
+      return;
     }
 
-    alignmentMapById.set(structId, map);
-    n++;
+    // === GUARD REQUIRED BY YOU ===
+    if (!guardPdbModeSelection()) return;
 
-    const pdb = (idxPdb>=0) ? safeTrim(row[idxPdb]) : "";
-    if (pdb) alignmentPdbById.set(structId, pdb);
+    const { x, yFull, yShort, hoverY, z, filteredCount, groupCount } = buildMatrix();
 
-    const nk = normalizeNameBasic(kinase);
-    if (!alignmentKinaseToStructIds.has(nk)) alignmentKinaseToStructIds.set(nk, []);
-    alignmentKinaseToStructIds.get(nk).push(structId);
-  }
-
-  for (const [k, ids] of alignmentKinaseToStructIds.entries()){
-    ids.sort((a,b)=>String(a).localeCompare(String(b)));
-  }
-
-  return n;
-}
-
-alignXlsxInput.addEventListener("change", async (e)=>{
-  const file = e.target.files?.[0];
-  if (!file) return;
-  try{
-    setStatus("Loading alignment XLSX...");
-    const buffer = await file.arrayBuffer();
-    const data2D = readXlsxArrayBuffer(buffer);
-    const n = parseAlignmentXlsx(data2D);
-    alignLoaded = true;
-    setStatus(`Alignment loaded (rows=${n}). Load docking pose to enable Compare.`);
-  }catch(err){
-    console.error(err);
-    alignLoaded=false;
-    setStatus("Alignment load failed: " + err.message);
-  }finally{
-    refreshUiLocks();
-  }
-});
-
-/* ===========================
-   Docking load
-   =========================== */
-dockXlsxInput.addEventListener("change", async (e)=>{
-  const file = e.target.files?.[0];
-  if (!file) return;
-  try{
-    setStatus("Loading docking pose XLSX...");
-    const buffer = await file.arrayBuffer();
-    dockRaw2D = readXlsxArrayBuffer(buffer);
-    dockLoaded = true;
-    setStatus("Docking pose loaded. Enter docking kinase to run Compare.");
-  }catch(err){
-    console.error(err);
-    dockLoaded=false;
-    setStatus("Docking pose load failed: " + err.message);
-  }finally{
-    refreshUiLocks();
-  }
-});
-
-dockKinaseInput.addEventListener("input", refreshUiLocks);
-
-/* ===========================
-   Selection list UI
-   =========================== */
-function getSelectedValues(){
-  return Array.from(selectedList.options).map(o=>o.value);
-}
-function moveSelected(fromSel, toSel){
-  const opts = Array.from(fromSel.selectedOptions);
-  for (const opt of opts){
-    const exists = Array.from(toSel.options).some(o=>o.value===opt.value);
-    if (!exists){
-      const n=document.createElement("option");
-      n.value=opt.value; n.textContent=opt.textContent;
-      toSel.appendChild(n);
+    if (groupCount === 0){
+      showAlert("目前篩選條件下沒有可用資料。請調整 kinase 選擇或確認欄位內容。");
+      return;
     }
-    fromSel.removeChild(opt);
-  }
-}
-addBtn.addEventListener("click", ()=>moveSelected(availableList, selectedList));
-removeBtn.addEventListener("click", ()=>moveSelected(selectedList, availableList));
-availableList.addEventListener("dblclick", ()=>moveSelected(availableList, selectedList));
-selectedList.addEventListener("dblclick", ()=>moveSelected(selectedList, availableList));
 
-clearSelectedBtn.addEventListener("click", ()=>{
-  const opts = Array.from(selectedList.options);
-  for (const opt of opts){
-    const n=document.createElement("option");
-    n.value=opt.value; n.textContent=opt.textContent;
-    availableList.appendChild(n);
-    selectedList.removeChild(opt);
-  }
-  const arr = Array.from(availableList.options).map(o=>o.value).sort((a,b)=>String(a).localeCompare(String(b)));
-  availableList.innerHTML="";
-  arr.forEach(v=>{
-    const o=document.createElement("option");
-    o.value=v; o.textContent=v;
-    availableList.appendChild(o);
-  });
-});
+    const cs = Number(cellSize.value || 16);
+    const lm = Number(leftMargin.value || 140);
 
-function rebuildAvailableSelectedLists(resetSelected=false){
-  if (!(metaLoaded && klifsLoaded)){
-    availableList.innerHTML="";
-    selectedList.innerHTML="";
-    return;
-  }
+    // height based on rows
+    const height = Math.min(900, Math.max(420, 140 + yFull.length * cs));
 
-  viewMode = viewModeSelect.value || "kinase";
-  let items=[];
-  if (viewMode==="kinase") items = allKinaseNames.slice();
-  else if (viewMode==="family") items = familyList.slice();
-  else items = groupList.slice();
-  items.sort((a,b)=>String(a).localeCompare(String(b)));
+    // Plotly heatmap trace
+    const trace = {
+      type: "heatmap",
+      x,
+      y: yShort,  // 顯示短標籤
+      z,
+      zmin: 0,
+      zmax: 1,
+      hovertemplate:
+        "<b>%{x}</b><br>" +
+        "y: %{customdata}<br>" +
+        "value: %{z:.3f}<extra></extra>",
+      customdata: yShort.map((_, idx) => hoverY[idx]).map(v => v), // each row label -> full info
+    };
 
-  if (resetSelected){
-    selectedList.innerHTML="";
-  }
+    const layout = {
+      margin: { l: lm, r: 20, t: 10, b: 90 },
+      height,
+      xaxis: {
+        tickangle: -45,
+        automargin: true,
+        tickfont: { family: "ui-monospace, Menlo, Consolas, monospace", size: 11 },
+      },
+      yaxis: {
+        automargin: false, // 我們用固定 left margin 來「鎖定」對齊感
+        tickfont: { family: "ui-monospace, Menlo, Consolas, monospace", size: 11 },
+      },
+      font: { family: "system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Arial" },
+      paper_bgcolor: "white",
+      plot_bgcolor: "white",
+    };
 
-  const selectedSet = new Set(getSelectedValues());
-  availableList.innerHTML="";
-  for (const it of items){
-    if (selectedSet.has(it)) continue;
-    const o=document.createElement("option");
-    o.value=it; o.textContent=it;
-    availableList.appendChild(o);
+    const config = { responsive: true, displaylogo: false };
+
+    Plotly.newPlot("heatmap", [trace], layout, config);
+
+    setStatus(`Render 完成：${filteredCount} rows -> ${groupCount} groups（mode=${state.mode}）`);
+    updateMeta();
   }
 
-  if (viewMode==="kinase"){
-    availableLabel.textContent = "Available kinases";
-    selectedLabel.textContent  = "Selected kinases";
-  }else if (viewMode==="family"){
-    availableLabel.textContent = "Available families";
-    selectedLabel.textContent  = "Selected families";
-  }else{
-    availableLabel.textContent = "Available groups";
-    selectedLabel.textContent  = "Selected groups";
+  function updateMeta(){
+    const selected = getSelectedValues(kinaseSelect);
+    const s = selected.length ? `kinase=${selected.join(", ")}` : "kinase=ALL";
+    metaEl.textContent = `${state.loadedFileName || "(no file)"} | mode=${state.mode} | ${s}`;
   }
-}
 
-viewModeSelect.addEventListener("change", ()=>{
-  rebuildAvailableSelectedLists(true);
-});
+  /******************************************************************
+   * Buttons
+   ******************************************************************/
+  renderBtn.addEventListener("click", renderHeatmap);
 
-/* ===========================
-   Selection -> KLIFS rows for heatmap
-   =========================== */
-function aggregateFreqRowsByScope(scope, value){
-  const key = scope==="family" ? "FAMILY" : "GROUPS";
-  const rows = klifsKinaseFreqRows.filter(r=>{
-    const meta = lookupMetaForKinase(r[kinaseKeyName]);
-    return meta[key] === value;
+  resetBtn.addEventListener("click", () => {
+    clearAlert();
+    // keep file as-is (user may want to re-render), but reset UI
+    setMode("kinase");
+    Array.from(kinaseSelect.options).forEach(o => o.selected = false);
+    updateKinaseCount();
+    yMaxLen.value = 14;
+    yShortPolicy.value = "tail";
+    cellSize.value = 16;
+    leftMargin.value = 140;
+    setStatus("已重設設定（資料仍保留，可直接 Render）");
+    updateMeta();
   });
 
-  const out={};
-  out[kinaseKeyName]=value;
-  const nKinase = rows.length;
-  const nStruct = rows.reduce((acc,r)=>acc+(Number(r.__n)||0),0);
-  out.__n = nStruct;
-
-  // Parentheses retained by design for compact, high-signal labels
-  out.__label = `${value} (nKinase=${nKinase}, nStruct=${nStruct})`;
-
-  for (const f of klifsFeatureKeys){
-    let sum=0, count=0;
-    for (const r of rows){
-      const v=Number(r[f]);
-      if (Number.isFinite(v)){ sum+=v; count++; }
-    }
-    out[f] = count ? (sum/count) : 0;
-  }
-  return out;
-}
-
-function getKlifsHeatmapRowsByCurrentSelection(){
-  viewMode = viewModeSelect.value || "kinase";
-  const picked = getSelectedValues();
-
-  if (viewMode==="kinase"){
-    let base = klifsKinaseFreqRows.slice();
-    if (picked.length){
-      const set = new Set(picked);
-      base = base.filter(r=>set.has(r[kinaseKeyName]));
-    }
-    return base;
-  }
-
-  if (viewMode==="family"){
-    const fams = picked.length ? picked : familyList.slice();
-    const rows = fams.map(f => aggregateFreqRowsByScope("family", f));
-    rows.sort((a,b)=>String(a[kinaseKeyName]).localeCompare(String(b[kinaseKeyName])));
-    return rows;
-  }
-
-  const grps = picked.length ? picked : groupList.slice();
-  const rows = grps.map(g => aggregateFreqRowsByScope("group", g));
-  rows.sort((a,b)=>String(a[kinaseKeyName]).localeCompare(String(b[kinaseKeyName])));
-  return rows;
-}
-
-/* ===========================
-   Residue mapping
-   =========================== */
-function buildResidueMapsByStructureId(structureId){
-  const rowMap = alignmentMapById.get(structureId);
-  const resToKlifs = new Map();
-  const klifsToRes = new Map();
-  if (!rowMap) return { resToKlifs, klifsToRes };
-
-  for (let p=1; p<=85; p++){
-    const res = rowMap[p];
-    if (res==null) continue;
-    klifsToRes.set(p, res);
-    if (!resToKlifs.has(res)) resToKlifs.set(res, p);
-  }
-  return { resToKlifs, klifsToRes };
-}
-
-function normalizePdb(pdb){ return safeTrim(pdb).toLowerCase(); }
-
-function autoPickAlignmentStructureIdForDockingKinase(dk, preferredPdb){
-  const k = safeTrim(dk);
-  if (!k) return "";
-  const nk = normalizeNameBasic(k);
-  const ids = alignmentKinaseToStructIds.get(nk) || [];
-  if (!ids.length) return "";
-
-  const pref = normalizePdb(preferredPdb);
-  if (pref){
-    const matched = ids.find(sid => normalizePdb(alignmentPdbById.get(sid) || "") === pref);
-    if (matched && alignmentMapById.has(matched)) return matched;
-  }
-
-  for (const sid of ids){
-    if (alignmentMapById.has(sid)) return sid;
-  }
-  return "";
-}
-
-/* ===========================
-   Feature label map
-   =========================== */
-function buildFeatureDisplayMapForKlifs(){
-  featureLabelMode = featureLabelModeSelect.value || "auto";
-  const map = new Map();
-  for (const f of klifsFeatureKeys) map.set(f, f);
-
-  if (residueModeActive && residueFeatureMap && residueFeatureMap.size){
-    for (const f of klifsFeatureKeys) map.set(f, residueFeatureMap.get(f) || f);
-    return map;
-  }
-
-  const wantResidue =
-    featureLabelMode==="residue" ||
-    (featureLabelMode==="auto" && alignLoaded && safeTrim(dockKinaseInput.value)!=="");
-
-  if (!wantResidue) return map;
-
-  const dk = safeTrim(dockKinaseInput.value);
-  const preferred = safeTrim(dockPdbInput.value);
-  const sid = autoPickAlignmentStructureIdForDockingKinase(dk, preferred);
-  if (!sid) return map;
-
-  const { klifsToRes } = buildResidueMapsByStructureId(sid);
-  if (!klifsToRes.size) return map;
-
-  for (const f of klifsFeatureKeys){
-    const m = String(f).match(/^(\d+)\-(HP|HB)$/i);
-    if (!m) continue;
-    const pos = parseInt(m[1],10);
-    const kind = m[2].toUpperCase();
-    const res = klifsToRes.get(pos);
-    if (res) map.set(f, `${res}-${kind}`);
-  }
-  return map;
-}
-
-/* ===========================
-   Plotly heatmap styles
-   =========================== */
-function makeTwoToneColorscale(){
-  const t = 0.5;
-  return [
-    [0.00, "#1f0037"],
-    [0.20, "#2f1a66"],
-    [0.40, "#3f3a8f"],
-    [t - 1e-6, "#9fe8dd"],
-    [t, "#f4b183"],
-    [0.75, "#f07c4a"],
-    [1.00, "#cc3d2b"]
-  ];
-}
-
-function drawHeatmap(targetDivId, rows, featureDisplayMap, title){
-  if (!rows.length){
-    Plotly.purge(targetDivId);
-    return;
-  }
-
-  const x = klifsFeatureKeys.map(f=>featureDisplayMap.get(f) || f);
-  const y = rows.map(r=>r.__label ?? r[kinaseKeyName] ?? "row");
-  const z = rows.map(r=>klifsFeatureKeys.map(f=>{
-    const v=Number(r[f]);
-    return Number.isFinite(v) ? v : 0;
-  }));
-
-  Plotly.newPlot(targetDivId, [{
-    x,y,z,
-    type:"heatmap",
-    colorscale: makeTwoToneColorscale(),
-    zmin:0,
-    zmax:100,
-    colorbar:{ title:"Frequency percent" }
-  }], {
-    title,
-    xaxis:{ title:"Features", tickangle:-90 },
-    yaxis:{ title:"Rows" },
-    margin:{ l:240, r:20, t:50, b:170 },
-    height: Math.max(560, 26*rows.length + 240),
-  }, { responsive:true });
-}
-
-/* ===========================
-   Selection scope for statistics (critical fix)
-   =========================== */
-function getCurrentSelectionScope(){
-  const mode = viewModeSelect.value || "kinase";
-  const picked = getSelectedValues();
-
-  let items = [];
-  if (picked.length){
-    items = picked.slice();
-  }else{
-    if (mode==="kinase") items = allKinaseNames.slice();
-    else if (mode==="family") items = familyList.slice();
-    else items = groupList.slice();
-  }
-
-  // keep concise, deterministic label for filenames and summary
-  const label = `${mode}_${items.join("+")}`;
-  return { mode, items, label };
-}
-
-function filterKlifsStructBinaryByScope(scope){
-  const mode = scope.mode;
-  const set = new Set(scope.items);
-
-  if (mode==="kinase"){
-    return klifsStructBinaryRows.filter(r=>set.has(safeTrim(r[kinaseKeyName])));
-  }
-  if (mode==="family"){
-    return klifsStructBinaryRows.filter(r=>{
-      const meta = lookupMetaForKinase(r[kinaseKeyName]);
-      return set.has(meta.FAMILY);
+  // Re-render on key settings change (optional but handy)
+  [yMaxLen, yShortPolicy, cellSize, leftMargin].forEach(el => {
+    el.addEventListener("change", () => {
+      if (state.rows && state.rows.length) renderHeatmap();
     });
-  }
-  return klifsStructBinaryRows.filter(r=>{
-    const meta = lookupMetaForKinase(r[kinaseKeyName]);
-    return set.has(meta.GROUPS);
-  });
-}
-
-function freqFromBinaryRows(binaryRows, label){
-  const out = { __n: binaryRows.length, __label: `${label} (n=${binaryRows.length})` };
-  for (const f of klifsFeatureKeys){
-    let sum=0;
-    for (const r of binaryRows) sum += Number(r[f]) ? 1 : 0;
-    out[f] = binaryRows.length ? (sum/binaryRows.length)*100 : 0;
-  }
-  return out;
-}
-
-/* ===========================
-   Docking processing
-   =========================== */
-const DOCK_KEYS = ["Pi-Hydrophobic","AlkylHydrophobic","MixedPiAlkylHydrophobic","HydrogenBond"];
-
-function parseDockingInteractionColumn(colName){
-  const s = String(colName||"");
-  let kind=null;
-  if (s.includes("HydrogenBond")) kind="HB";
-  else if (s.includes("Pi-Hydrophobic") || s.includes("AlkylHydrophobic") || s.includes("MixedPiAlkylHydrophobic")) kind="HP";
-  else return null;
-
-  const m = s.match(/([A-Z]{3})(\d{1,5})/);
-  if (!m) return null;
-  const resNum = parseInt(m[2],10);
-  if (!Number.isFinite(resNum)) return null;
-  return { residueNumber: resNum, kind };
-}
-
-function inferDockingPdbFromDockTable(data2D){
-  const header = (data2D[0] || []).map(safeTrim);
-  const pdbIdx = findCol(header, ["pdb"]);
-  if (pdbIdx < 0) return "";
-  const counts = new Map();
-  for (let r=1; r<data2D.length; r++){
-    const row = data2D[r];
-    if (!row) continue;
-    const v = safeTrim(row[pdbIdx]);
-    if (!v) continue;
-    const key = normalizePdb(v);
-    counts.set(key, (counts.get(key)||0)+1);
-  }
-  if (!counts.size) return "";
-  let bestKey="", bestN=-1;
-  for (const [k,n] of counts.entries()){
-    if (n>bestN){ bestN=n; bestKey=k; }
-  }
-  return bestKey;
-}
-
-function processDockingPoseTable(data2D, sid){
-  const header = (data2D[0] || []).map(safeTrim);
-  const nameIdx = findCol(header, ["name"]);
-  if (nameIdx<0) throw new Error("Docking file must include column Name.");
-  const dsIdx = findCol(header, ["r_i_docking_score","docking_score"]);
-
-  const interactionCols=[];
-  for (let c=0;c<header.length;c++){
-    const h=header[c];
-    if (!h) continue;
-    if (DOCK_KEYS.some(k=>h.includes(k))){
-      const p = parseDockingInteractionColumn(h);
-      if (p) interactionCols.push({ idx:c, ...p });
-    }
-  }
-  if (!interactionCols.length){
-    throw new Error("No interaction columns found in docking table.");
-  }
-
-  const { resToKlifs } = buildResidueMapsByStructureId(sid);
-  if (!resToKlifs.size){
-    throw new Error("Residue to KLIFS mapping is empty for selected alignment row.");
-  }
-
-  const raw=[];
-  for (let r=1;r<data2D.length;r++){
-    const row=data2D[r];
-    if (!row || row.every(v=>v==null || String(v).trim()==="")) continue;
-
-    const name=safeTrim(row[nameIdx]);
-    if (!name) continue;
-    const ds = (dsIdx>=0) ? Number(row[dsIdx]) : NaN;
-
-    const feat={};
-    for (const ic of interactionCols){
-      const val = Number(row[ic.idx]);
-      const bin = Number.isFinite(val) && val >= 1 ? 1 : 0;
-      if (!bin) continue;
-
-      const klifsPos = resToKlifs.get(ic.residueNumber);
-      if (!klifsPos) continue;
-      feat[`${klifsPos}-${ic.kind}`] = 1;
-    }
-    raw.push({ Name:name, DS:ds, feat });
-  }
-  if (!raw.length) throw new Error("No valid docking rows found.");
-
-  // dedup by Name keep best DS
-  const best = new Map();
-  for (const r of raw){
-    if (!best.has(r.Name)) best.set(r.Name, r);
-    else{
-      const cur = best.get(r.Name);
-      const curOk = Number.isFinite(cur.DS);
-      const newOk = Number.isFinite(r.DS);
-      if (!curOk && newOk) best.set(r.Name, r);
-      else if (curOk && newOk && r.DS < cur.DS) best.set(r.Name, r);
-    }
-  }
-  const uniq = Array.from(best.values());
-
-  const featureSet = new Set(klifsFeatureKeys);
-  const dockBinary = uniq.map(r=>{
-    const out={ Name:r.Name, DS:r.DS };
-    for (const f of featureSet) out[f]=0;
-    for (const k of Object.keys(r.feat)){
-      if (featureSet.has(k)) out[k]=1;
-    }
-    return out;
   });
 
-  const freq={ __n:dockBinary.length, __label:`Docking (n=${dockBinary.length})` };
-  for (const f of featureSet){
-    let sum=0;
-    for (const r of dockBinary) sum += Number(r[f]) ? 1 : 0;
-    freq[f] = dockBinary.length ? (sum/dockBinary.length)*100 : 0;
-  }
-
-  return { dockBinary, freq };
-}
-
-/* ===========================
-   Diff plot (skip both-zero)
-   =========================== */
-function drawDiffPlot(dockFreq, klifsFreq, fmap){
-  if (!dockFreq || !klifsFreq){
-    Plotly.purge("diffPlot");
-    return { items: [] };
-  }
-
-  let items = klifsFeatureKeys.map(f=>{
-    const d = Number(dockFreq[f]) || 0;
-    const k = Number(klifsFreq[f]) || 0;
-    return { f, dock:d, klifs:k, diff:(d-k) };
-  });
-
-  items = items.filter(it => !(it.dock===0 && it.klifs===0));
-
-  if (!items.length){
-    Plotly.purge("diffPlot");
-    return { items: [] };
-  }
-
-  items.sort((a,b)=>b.dock - a.dock);
-
-  const x = items.map(it=>fmap.get(it.f) || it.f);
-  const yDock = items.map(it=>it.dock);
-  const yKlifs = items.map(it=>it.klifs);
-  const yDiff = items.map(it=>it.diff);
-
-  Plotly.newPlot("diffPlot", [
-    { x, y:yDock,  type:"bar", name:"Docking frequency", yaxis:"y1" },
-    { x, y:yKlifs, type:"bar", name:"KLIFS frequency",  yaxis:"y1" },
-    { x, y:yDiff,  type:"scatter", mode:"lines+markers", name:"Delta Docking minus KLIFS", yaxis:"y2" }
-  ], {
-    title:"Docking vs KLIFS",
-    xaxis:{ tickangle:-90, title:"Features" },
-    yaxis:{ title:"Frequency percent" },
-    yaxis2:{ title:"Delta", overlaying:"y", side:"right" },
-    barmode:"group",
-    margin:{ l:80, r:90, t:50, b:170 },
-    height: 640,
-    legend:{ orientation:"h" }
-  }, { responsive:true });
-
-  return { items };
-}
-
-/* ===========================
-   MDS + PERMANOVA
-   =========================== */
-function jaccardDistance(a,b){
-  let inter=0, uni=0;
-  for (let i=0;i<a.length;i++){
-    const ai=a[i]?1:0, bi=b[i]?1:0;
-    if (ai||bi) uni++;
-    if (ai&&bi) inter++;
-  }
-  if (!uni) return 0;
-  return 1 - inter/uni;
-}
-function pairwiseDistanceMatrix(vectors){
-  const n=vectors.length;
-  const D=Array.from({length:n},()=>Array(n).fill(0));
-  for (let i=0;i<n;i++){
-    for (let j=i+1;j<n;j++){
-      const d=jaccardDistance(vectors[i],vectors[j]);
-      D[i][j]=d; D[j][i]=d;
-    }
-  }
-  return D;
-}
-function permanovaTest(D, labels, nPerm=199){
-  const n=labels.length;
-  const uniq=Array.from(new Set(labels));
-
-  function ssWithin(lbls){
-    let ss=0;
-    for (const g of uniq){
-      const idx=[];
-      for (let i=0;i<n;i++) if (lbls[i]===g) idx.push(i);
-      if (idx.length<=1) continue;
-      let sum=0;
-      for (let a=0;a<idx.length;a++){
-        for (let b=0;b<idx.length;b++){
-          const d=D[idx[a]][idx[b]];
-          sum += d*d;
-        }
-      }
-      ss += sum / idx.length;
-    }
-    return ss;
-  }
-  function ssBetween(lbls){
-    let sumAll=0;
-    for (let i=0;i<n;i++){
-      for (let j=0;j<n;j++){
-        const d=D[i][j];
-        sumAll += d*d;
-      }
-    }
-    const grand = sumAll/(n*n);
-    let ss=0;
-    for (const g of uniq){
-      const idx=[];
-      for (let i=0;i<n;i++) if (lbls[i]===g) idx.push(i);
-      if (!idx.length) continue;
-      let sum=0;
-      for (let a=0;a<idx.length;a++){
-        for (let b=0;b<idx.length;b++){
-          const d=D[idx[a]][idx[b]];
-          sum += d*d;
-        }
-      }
-      const mean = sum/(idx.length*idx.length);
-      ss += idx.length*(mean-grand)*(mean-grand);
-    }
-    return ss;
-  }
-
-  const ssW=ssWithin(labels);
-  const ssB=ssBetween(labels);
-  const Fobs = ssB/(ssW+1e-12);
-
-  let count=0;
-  for (let p=0;p<nPerm;p++){
-    const perm=labels.slice();
-    for (let i=n-1;i>0;i--){
-      const j=Math.floor(Math.random()*(i+1));
-      [perm[i],perm[j]]=[perm[j],perm[i]];
-    }
-    const Fp = ssBetween(perm)/(ssWithin(perm)+1e-12);
-    if (Fp>=Fobs) count++;
-  }
-  const pval=(count+1)/(nPerm+1);
-  return { F:Fobs, p:pval };
-}
-function mds2DFromDistance(D){
-  const n=D.length;
-  const D2=Array.from({length:n},()=>Array(n).fill(0));
-  for (let i=0;i<n;i++) for (let j=0;j<n;j++) D2[i][j]=D[i][j]*D[i][j];
-
-  const rowMean=Array(n).fill(0), colMean=Array(n).fill(0);
-  for (let i=0;i<n;i++){
-    let s=0; for (let j=0;j<n;j++) s+=D2[i][j];
-    rowMean[i]=s/n;
-  }
-  for (let j=0;j<n;j++){
-    let s=0; for (let i=0;i<n;i++) s+=D2[i][j];
-    colMean[j]=s/n;
-  }
-  const grand = rowMean.reduce((a,b)=>a+b,0)/n;
-
-  const B=Array.from({length:n},()=>Array(n).fill(0));
-  for (let i=0;i<n;i++){
-    for (let j=0;j<n;j++){
-      B[i][j] = -0.5*(D2[i][j]-rowMean[i]-colMean[j]+grand);
-    }
-  }
-
-  function matVec(M,v){
-    const out=Array(M.length).fill(0);
-    for (let i=0;i<M.length;i++){
-      let s=0; for (let j=0;j<M.length;j++) s+=M[i][j]*v[j];
-      out[i]=s;
-    }
-    return out;
-  }
-  function dot(a,b){ let s=0; for (let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
-  function norm(a){ return Math.sqrt(dot(a,a)) || 1; }
-  function scale(a,k){ return a.map(x=>x*k); }
-
-  function powerIter(M, it=220){
-    let v=Array(M.length).fill(0).map(()=>Math.random()-0.5);
-    v=scale(v, 1/norm(v));
-    for (let t=0;t<it;t++){
-      const w=matVec(M,v);
-      v=scale(w, 1/norm(w));
-    }
-    const w=matVec(M,v);
-    const lambda=dot(v,w);
-    return { lambda, v };
-  }
-
-  const e1=powerIter(B,260);
-  const B2=Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>B[i][j]-e1.lambda*e1.v[i]*e1.v[j]));
-  const e2=powerIter(B2,260);
-
-  const l1=Math.max(e1.lambda,0), l2=Math.max(e2.lambda,0);
-  const x=e1.v.map(v=>v*Math.sqrt(l1));
-  const y=e2.v.map(v=>v*Math.sqrt(l2));
-  return { x,y };
-}
-function drawMds(vectors, labels){
-  if (vectors.length < 3){
-    Plotly.purge("mdsPlot");
-    return { perma:null, note:"Insufficient samples for MDS and PERMANOVA." };
-  }
-  const D = pairwiseDistanceMatrix(vectors);
-  const perma = permanovaTest(D, labels, 199);
-  const mds = mds2DFromDistance(D);
-
-  const xK=[], yK=[], xD=[], yD=[];
-  for (let i=0;i<labels.length;i++){
-    if (labels[i]==="KLIFS"){ xK.push(mds.x[i]); yK.push(mds.y[i]); }
-    else { xD.push(mds.x[i]); yD.push(mds.y[i]); }
-  }
-
-  Plotly.newPlot("mdsPlot", [
-    { x:xK, y:yK, type:"scatter", mode:"markers", name:`KLIFS (n=${xK.length})`, opacity:0.45, marker:{ size:9, symbol:"triangle-up" } },
-    { x:xD, y:yD, type:"scatter", mode:"markers", name:`Docking (n=${xD.length})`, opacity:0.85, marker:{ size:8 } }
-  ], {
-    title:"MDS with Jaccard distance",
-    xaxis:{ title:"Dimension 1" },
-    yaxis:{ title:"Dimension 2" },
-    margin:{ l:70, r:20, t:50, b:50 },
-    height:620,
-    legend:{ orientation:"h" }
-  }, { responsive:true });
-
-  return { perma };
-}
-
-/* ===========================
-   Confusion matrix + metrics
-   =========================== */
-function computeConfusion(dockFreq, klifsFreq, klifsThreshold){
-  const thr = clamp01(klifsThreshold) * 100; // threshold applies to percent
-  let TP=0, FP=0, TN=0, FN=0;
-
-  const rows = [];
-  for (const f of klifsFeatureKeys){
-    const d = Number(dockFreq?.[f]) || 0;
-    const k = Number(klifsFreq?.[f]) || 0;
-
-    const truthPos = d >= 50;      // fixed ground truth
-    const testPos  = k >= thr;     // user threshold
-
-    if (truthPos && testPos) TP++;
-    else if (!truthPos && testPos) FP++;
-    else if (!truthPos && !testPos) TN++;
-    else FN++;
-
-    rows.push({ feature:f, docking_freq:d, klifs_freq:k, truth: truthPos?1:0, pred: testPos?1:0 });
-  }
-
-  const precision = (TP+FP) ? TP/(TP+FP) : null;
-  const recall    = (TP+FN) ? TP/(TP+FN) : null;  // sensitivity
-  const specificity = (TN+FP) ? TN/(TN+FP) : null;
-  const accuracy = (TP+TN) ? (TP+TN)/(TP+TN+FP+FN) : null;
-  const f1 = (precision!=null && recall!=null && (precision+recall)>0) ? (2*precision*recall/(precision+recall)) : null;
-
-  return { TP, FP, TN, FN, precision, recall, specificity, accuracy, f1, thrPercent: thr, perFeature: rows };
-}
-
-function drawConfusionPlot(conf){
-  if (!conf){
-    Plotly.purge("confusionPlot");
-    return;
-  }
-
-  const z = [
-    [conf.TN, conf.FP],
-    [conf.FN, conf.TP],
-  ];
-  const x = ["Predicted negative", "Predicted positive"];
-  const y = ["True negative", "True positive"];
-
-  const fmt = (v)=> (v==null ? "NA" : v.toFixed(3));
-  const metricLines = [
-    `Threshold KLIFS ${conf.thrPercent.toFixed(1)} percent`,
-    `Precision ${conf.precision==null ? "NA" : fmt(conf.precision)}`,
-    `Recall ${conf.recall==null ? "NA" : fmt(conf.recall)}`,
-    `Specificity ${conf.specificity==null ? "NA" : fmt(conf.specificity)}`,
-    `Accuracy ${conf.accuracy==null ? "NA" : fmt(conf.accuracy)}`,
-    `F1 ${conf.f1==null ? "NA" : fmt(conf.f1)}`
-  ].join("<br>");
-
-  Plotly.newPlot("confusionPlot", [{
-    x,y,z,
+  // Default empty plot
+  Plotly.newPlot("heatmap", [{
     type:"heatmap",
-    showscale:false,
-    text:z.map(r=>r.map(v=>String(v))),
-    texttemplate:"%{text}",
-    hovertemplate:"%{y} vs %{x}<br>Count %{z}<extra></extra>"
+    x:["IFP_0","IFP_1","IFP_2"],
+    y:["(upload)"],
+    z:[[0,0,0]],
+    hoverinfo:"skip",
   }], {
-    title:"Confusion matrix and metrics",
-    annotations: [{
-      xref:"paper", yref:"paper", x:1.02, y:0.98, xanchor:"left", yanchor:"top",
-      text: metricLines,
-      showarrow:false,
-      align:"left",
-      font:{ size:12, color:"#333" }
-    }],
-    margin:{ l:120, r:260, t:50, b:60 },
-    height:520
-  }, { responsive:true });
-}
-
-/* ===========================
-   KLIFS render
-   =========================== */
-runKlifsHeatmapBtn.addEventListener("click", ()=>{
-  try{
-    if (!(metaLoaded && klifsLoaded)) return;
-
-    const rows = getKlifsHeatmapRowsByCurrentSelection();
-    lastKlifsRows = rows.slice();
-    const fmap = buildFeatureDisplayMapForKlifs();
-
-    drawHeatmap("klifsHeatmap", rows, fmap, "KLIFS interaction frequency");
-
-    const picked = getSelectedValues();
-    const pickedText = picked.length ? picked.join(", ") : "All";
-    const xMode = residueModeActive ? "Residue" : (featureLabelModeSelect.value || "Auto");
-
-    summaryInfo.innerHTML =
-      `View mode <span class="pill">${viewModeSelect.value}</span> ` +
-      `Rows <span class="pill">${rows.length}</span> ` +
-      `Selected <span class="pill">${pickedText}</span> ` +
-      `X labels <span class="pill">${xMode}</span>`;
-  }catch(err){
-    console.error(err);
-    alert("KLIFS render failed: " + err.message);
-  }
-});
-
-/* ===========================
-   Compare
-   =========================== */
-function buildResidueFeatureMapFromSid(sid){
-  const fmap = new Map();
-  for (const f of klifsFeatureKeys) fmap.set(f, f);
-  const { klifsToRes } = buildResidueMapsByStructureId(sid);
-  for (const f of klifsFeatureKeys){
-    const m = String(f).match(/^(\d+)\-(HP|HB)$/i);
-    if (!m) continue;
-    const pos=parseInt(m[1],10);
-    const kind=m[2].toUpperCase();
-    const res=klifsToRes.get(pos);
-    if (res) fmap.set(f, `${res}-${kind}`);
-  }
-  return fmap;
-}
-
-function recomputeAllCompareOutputs(){
-  if (!residueModeActive || !dockFreqRow) return;
-
-  const scope = getCurrentSelectionScope();
-  const klifsStruct = filterKlifsStructBinaryByScope(scope);
-  const klifsFreq = freqFromBinaryRows(klifsStruct, `KLIFS ${scope.mode} ${scope.items.join("+")}`);
-
-  // plots
-  const diffRes = drawDiffPlot(dockFreqRow, klifsFreq, residueFeatureMap);
-
-  // MDS / PERMANOVA on binary rows
-  const klifsVec = klifsStruct.map(r=>klifsFeatureKeys.map(f=>Number(r[f])?1:0));
-  const dockVec  = dockBinaryRows.map(r=>klifsFeatureKeys.map(f=>Number(r[f])?1:0));
-  const vectors=[], labels=[];
-  for (const v of klifsVec){ vectors.push(v); labels.push("KLIFS"); }
-  for (const v of dockVec){ vectors.push(v); labels.push("Docking"); }
-  const mdsRes = drawMds(vectors, labels);
-
-  // confusion
-  const thr = clamp01(klifsThresholdInput.value);
-  const conf = computeConfusion(dockFreqRow, klifsFreq, thr);
-  drawConfusionPlot(conf);
-
-  // summary (keep parentheses in key labels)
-  const permaText = mdsRes?.perma
-    ? `PERMANOVA F ${mdsRes.perma.F.toFixed(4)} p ${mdsRes.perma.p.toFixed(4)}`
-    : (mdsRes?.note || "PERMANOVA unavailable");
-
-  summaryInfo.innerHTML =
-    `Compare <span class="pill">Aligned</span> ` +
-    `Alignment <span class="pill">${lastDockAlignmentSid}</span> ` +
-    `Docking ligands <span class="pill">${dockFreqRow.__n}</span> ` +
-    `KLIFS structures <span class="pill">${klifsStruct.length}</span> ` +
-    `X labels <span class="pill">Residue</span><br>` +
-    `${permaText}`;
-
-  // persist compare state for export filenames
-  lastCompare.dockingKinase = safeTrim(dockKinaseInput.value);
-  lastCompare.alignmentSid = lastDockAlignmentSid;
-  lastCompare.compareMode = scope.mode;
-  lastCompare.compareSelectedLabel = scope.label;
-  lastCompare.klifsStructCount = klifsStruct.length;
-  lastCompare.dockingLigCount = dockFreqRow.__n;
-  lastCompare.permanovaF = mdsRes?.perma ? mdsRes.perma.F : null;
-  lastCompare.permanovaP = mdsRes?.perma ? mdsRes.perma.p : null;
-  lastCompare.confusion = conf;
-
-  return { klifsStruct, klifsFreq, diffItems: diffRes.items, perma: mdsRes.perma, conf };
-}
-
-compareBtn.addEventListener("click", ()=>{
-  try{
-    if (!(metaLoaded && klifsLoaded && alignLoaded && dockLoaded)){
-      alert("Compare requires Meta, KLIFS IFP, alignment, and docking files.");
-      return;
-    }
-    const dk = safeTrim(dockKinaseInput.value);
-    if (!dk){
-      alert("Enter docking kinase.");
-      return;
-    }
-
-    const manualPdb = safeTrim(dockPdbInput.value);
-    const inferredPdbNorm = inferDockingPdbFromDockTable(dockRaw2D);
-    const preferredPdb = manualPdb ? manualPdb : inferredPdbNorm;
-
-    const sid = autoPickAlignmentStructureIdForDockingKinase(dk, preferredPdb);
-    if (!sid){
-      alert("Alignment row not found for docking kinase. Check alignment kinase naming or provide PDB override.");
-      return;
-    }
-    lastDockAlignmentSid = sid;
-
-    residueModeActive = true;
-    residueFeatureMap = buildResidueFeatureMapFromSid(sid);
-
-    const proc = processDockingPoseTable(dockRaw2D, sid);
-    dockBinaryRows = proc.dockBinary;
-    dockFreqRow = proc.freq;
-
-    // redraw KLIFS heatmap using residue labels and current selection
-    const rows = getKlifsHeatmapRowsByCurrentSelection();
-    lastKlifsRows = rows.slice();
-    drawHeatmap("klifsHeatmap", rows, residueFeatureMap, "KLIFS interaction frequency");
-
-    // docking heatmap
-    drawHeatmap("dockHeatmap", [dockFreqRow], residueFeatureMap, `Docking interaction frequency (aligned)`);
-
-    // stats based on current selection (not docking family)
-    recomputeAllCompareOutputs();
-
-  }catch(err){
-    console.error(err);
-    alert("Compare failed: " + err.message);
-  }finally{
-    refreshUiLocks();
-  }
-});
-
-// recompute confusion when threshold changes
-klifsThresholdInput.addEventListener("input", ()=>{
-  if (!residueModeActive || !dockFreqRow) return;
-  recomputeAllCompareOutputs();
-});
-
-/* ===========================
-   Export Excel and plots
-   =========================== */
-function buildHeatmapTable(rows, fmap){
-  const xLabels = klifsFeatureKeys.map(f=>fmap.get(f) || f);
-  const out = [];
-  for (const r of rows){
-    const rowObj = { Row: r.__label ?? r[kinaseKeyName] ?? "row" };
-    for (let i=0;i<klifsFeatureKeys.length;i++){
-      const f = klifsFeatureKeys[i];
-      rowObj[xLabels[i]] = Number(r[f]) || 0;
-    }
-    out.push(rowObj);
-  }
-  return out;
-}
-
-exportExcelBtn.addEventListener("click", ()=>{
-  try{
-    if (!residueModeActive || !dockFreqRow) return;
-
-    const scope = getCurrentSelectionScope();
-    const klifsStruct = filterKlifsStructBinaryByScope(scope);
-    const klifsFreq = freqFromBinaryRows(klifsStruct, `KLIFS ${scope.mode} ${scope.items.join("+")}`);
-    const diffRes = drawDiffPlot(dockFreqRow, klifsFreq, residueFeatureMap); // ensure latest filtering
-
-    const thr = clamp01(klifsThresholdInput.value);
-    const conf = computeConfusion(dockFreqRow, klifsFreq, thr);
-
-    const wb = XLSX.utils.book_new();
-
-    // sheet 1: KLIFS heatmap currently displayed
-    const klifsSheetData = buildHeatmapTable(lastKlifsRows.length ? lastKlifsRows : getKlifsHeatmapRowsByCurrentSelection(), residueFeatureMap);
-    const ws1 = XLSX.utils.json_to_sheet(klifsSheetData);
-    XLSX.utils.book_append_sheet(wb, ws1, "KLIFS_heatmap");
-
-    // sheet 2: Docking heatmap
-    const dockSheetData = buildHeatmapTable([dockFreqRow], residueFeatureMap);
-    const ws2 = XLSX.utils.json_to_sheet(dockSheetData);
-    XLSX.utils.book_append_sheet(wb, ws2, "Docking_heatmap");
-
-    // sheet 3: Diff items (already filtered to remove both-zero)
-    const diffData = (diffRes.items || []).map(it=>({
-      Feature: residueFeatureMap.get(it.f) || it.f,
-      Docking_frequency_percent: it.dock,
-      KLIFS_frequency_percent: it.klifs,
-      Delta_docking_minus_klifs: it.diff
-    }));
-    const ws3 = XLSX.utils.json_to_sheet(diffData);
-    XLSX.utils.book_append_sheet(wb, ws3, "Diff_table");
-
-    // sheet 4: Confusion metrics
-    const metrics = [{
-      Docking_kinase: safeTrim(dockKinaseInput.value),
-      View_mode: scope.mode,
-      Selected_items: scope.items.join("+"),
-      Alignment_structure_ID: lastDockAlignmentSid,
-      Docking_ligands: dockFreqRow.__n,
-      KLIFS_structures: klifsStruct.length,
-      KLIFS_threshold_percent: conf.thrPercent,
-      TP: conf.TP, FP: conf.FP, TN: conf.TN, FN: conf.FN,
-      Precision: conf.precision,
-      Recall: conf.recall,
-      Specificity: conf.specificity,
-      Accuracy: conf.accuracy,
-      F1: conf.f1,
-      PERMANOVA_F: lastCompare.permanovaF,
-      PERMANOVA_p: lastCompare.permanovaP
-    }];
-    const ws4 = XLSX.utils.json_to_sheet(metrics);
-    XLSX.utils.book_append_sheet(wb, ws4, "Metrics");
-
-    // sheet 5: Confusion per feature
-    const perFeat = conf.perFeature.map(r=>({
-      Feature: residueFeatureMap.get(r.feature) || r.feature,
-      Docking_frequency_percent: r.docking_freq,
-      KLIFS_frequency_percent: r.klifs_freq,
-      Truth_positive: r.truth,
-      Predicted_positive: r.pred
-    }));
-    const ws5 = XLSX.utils.json_to_sheet(perFeat);
-    XLSX.utils.book_append_sheet(wb, ws5, "Feature_labels");
-
-    const filename = `${makeBaseExportName()}.xlsx`;
-    XLSX.writeFile(wb, filename);
-
-  }catch(err){
-    console.error(err);
-    alert("Excel export failed: " + err.message);
-  }
-});
-
-async function exportPlotDiv(divId, filename){
-  const gd = document.getElementById(divId);
-  if (!gd || !gd.data || !gd.data.length) return;
-  const url = await Plotly.toImage(gd, { format:"png", height: gd.layout?.height || 720, width: 1400, scale: 2 });
-  downloadDataUrl(url, filename);
-}
-
-exportPlotsBtn.addEventListener("click", async ()=>{
-  try{
-    if (!residueModeActive || !dockFreqRow) return;
-    const base = makeBaseExportName();
-    await exportPlotDiv("klifsHeatmap", `${base}__KLIFS_heatmap.png`);
-    await exportPlotDiv("dockHeatmap",  `${base}__Docking_heatmap.png`);
-    await exportPlotDiv("diffPlot",     `${base}__Diff_plot.png`);
-    await exportPlotDiv("mdsPlot",      `${base}__MDS.png`);
-    await exportPlotDiv("confusionPlot",`${base}__Confusion.png`);
-  }catch(err){
-    console.error(err);
-    alert("Plot export failed: " + err.message);
-  }
-});
-
-/* ===========================
-   Reset
-   =========================== */
-function resetWorkflowState(){
-  viewModeSelect.value = "kinase";
-  featureLabelModeSelect.value = "auto";
-  dockPdbInput.value = "";
-
-  selectedList.innerHTML = "";
-  rebuildAvailableSelectedLists(true);
-
-  Plotly.purge("klifsHeatmap");
-  Plotly.purge("dockHeatmap");
-  Plotly.purge("diffPlot");
-  Plotly.purge("mdsPlot");
-  Plotly.purge("confusionPlot");
-
-  summaryInfo.innerHTML = "";
-
-  lastKlifsRows = [];
-  residueModeActive = false;
-  residueFeatureMap = new Map();
-  dockBinaryRows = [];
-  dockFreqRow = null;
-  lastDockAlignmentSid = "";
-
-  lastCompare = {
-    dockingKinase: "",
-    alignmentSid: "",
-    compareMode: "",
-    compareSelectedLabel: "",
-    klifsStructCount: 0,
-    dockingLigCount: 0,
-    permanovaF: null,
-    permanovaP: null,
-    confusion: null,
-  };
-
-  setStatus("Reset complete. Files remain loaded.");
-  refreshUiLocks();
-}
-
-resetBtn.addEventListener("click", ()=>{
-  if (!(metaLoaded && klifsLoaded)) return;
-  resetWorkflowState();
-});
-
-/* ===========================
-   Init
-   =========================== */
-viewModeSelect.value = "kinase";
-featureLabelModeSelect.value = "auto";
-refreshUiLocks();
+    margin:{l:140,r:20,t:10,b:70},
+    height: 420,
+    paper_bgcolor:"white",
+    plot_bgcolor:"white",
+  }, {responsive:true, displaylogo:false});
 </script>
 </body>
 </html>
