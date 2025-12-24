@@ -54,9 +54,10 @@
     .btn-danger{ background:#fff; color:#7a271a; border:1px solid #f2c7c2; }
     .btn-danger:hover{ background:#fff2f1; }
 
-    #klifsHeatmap, #dockHeatmap, #diffPlot, #mdsPlot, #confusionPlot{
+    #klifsHeatmap, #dockHeatmap, #diffPlot, #mdsPlot, #confusionPlot, #pdbDendrogram{
       width:100%; min-height:520px; margin-top:10px; background:#fff; border:1px solid #eee; border-radius:12px;
     }
+    #pdbDendrogram{ min-height:260px; }
     #dockHeatmap{
       border:3px solid var(--border-strong);
       box-shadow:0 2px 10px rgba(31,122,224,0.12);
@@ -137,10 +138,12 @@
 
   <div class="panel">
     <h2>2 KLIFS heatmap</h2>
+    <div id="pdbDendrogram"></div>
+
     <div class="box-note muted">
       Select view mode, move items into Selected, then render KLIFS heatmap. Empty selection means all.
       <br>
-      New: PDB mode shows all PDBs (structures) for a selected kinase as multiple rows and clusters rows by interaction similarity.
+      PDB mode shows all structures for the first selected kinase as multiple rows, then clusters rows by interaction similarity.
     </div>
 
     <div class="flex-row" style="margin-top:10px;">
@@ -155,25 +158,6 @@
         <div class="muted small">
           PDB mode requires selecting <span class="pill">at least one kinase</span> (first selected kinase is used).
         </div>
-      </div>
-
-      <div class="field" style="min-width:260px;">
-        <label>Y label max length (align docking pose)</label>
-        <input type="number" id="yLabelMaxLenInput" min="8" max="120" step="1" value="28" disabled />
-      </div>
-
-      <div class="field" style="min-width:260px;">
-        <label>Y label shortening</label>
-        <select id="yLabelShortModeSelect" disabled>
-          <option value="tail" selected>Keep tail (…XYZ)</option>
-          <option value="head">Keep head (ABC…)</option>
-          <option value="middle">Middle (AB…YZ)</option>
-        </select>
-      </div>
-
-      <div class="field" style="min-width:240px;">
-        <label>Left margin</label>
-        <input type="number" id="leftMarginInput" min="120" max="420" step="10" value="240" disabled />
       </div>
 
       <div class="field">
@@ -214,6 +198,9 @@
     <h2>3 Results</h2>
 
     <h3>KLIFS heatmap</h3>
+    <div class="muted small" id="klifsYLegend" style="margin-top:6px;">
+      Y label (PDB mode): <span class="pill">KINASE/PDB/DFG/alphaC</span> (example: CLK4/6FYV/in/in). DFG/alphaC removed from hover.
+    </div>
     <div id="klifsHeatmap"></div>
 
     <hr/>
@@ -227,10 +214,14 @@
       <div class="flex-row" style="margin-top:10px;">
         <div class="field" style="min-width:320px;">
           <label>KLIFS positive threshold</label>
-          <input type="number" id="klifsThresholdInput" min="0" max="1" step="0.01" value="0.50" />
+          <div class="inline">
+            <input type="number" id="klifsThresholdInput" min="0" max="1" step="0.01" value="0.50" />
+            <button class="btn-secondary" id="applyThresholdBtn" disabled>Apply</button>
+          </div>
           <div class="muted small">
             Ground truth uses Docking frequency at least 50 percent. Test positive uses KLIFS frequency at least threshold.
           </div>
+          <div class="muted small" id="thresholdHint" style="margin-top:6px;"></div>
         </div>
 
         <div class="field" style="min-width:520px;">
@@ -271,10 +262,6 @@ const dockPdbInput   = document.getElementById("dockPdbInput");
 const viewModeSelect = document.getElementById("viewModeSelect");
 const featureLabelModeSelect = document.getElementById("featureLabelMode");
 
-const yLabelMaxLenInput = document.getElementById("yLabelMaxLenInput");
-const yLabelShortModeSelect = document.getElementById("yLabelShortModeSelect");
-const leftMarginInput = document.getElementById("leftMarginInput");
-
 const runKlifsHeatmapBtn = document.getElementById("runKlifsHeatmapBtn");
 const compareBtn = document.getElementById("compareBtn");
 const resetBtn   = document.getElementById("resetBtn");
@@ -282,6 +269,8 @@ const resetBtn   = document.getElementById("resetBtn");
 const exportExcelBtn = document.getElementById("exportExcelBtn");
 const exportPlotsBtn = document.getElementById("exportPlotsBtn");
 const klifsThresholdInput = document.getElementById("klifsThresholdInput");
+const applyThresholdBtn = document.getElementById("applyThresholdBtn");
+const thresholdHint = document.getElementById("thresholdHint");
 
 const availableList = document.getElementById("availableList");
 const selectedList  = document.getElementById("selectedList");
@@ -342,6 +331,9 @@ let lastCompare = {
 
 // KLIFS row highlight (most similar to docking)
 let lastKlifsHighlightedRowLabel = "";
+
+/* PDB clustering/dendrogram state */
+let lastPdbDendrogram = { root:null, labels:[], leafOrder:[] };
 
 /* ===========================
    Helpers
@@ -429,6 +421,17 @@ function shortenLabel(s, maxLen, mode){
 
 function normalizePdb(pdb){ return safeTrim(pdb).toLowerCase(); }
 
+/* Normalize DFG/alphaC to in/out/na (simple) */
+function normalizeStateInOut(s){
+  const v = safeTrim(s).toLowerCase();
+  if (!v) return "na";
+  if (v.includes("in")) return "in";
+  if (v.includes("out")) return "out";
+  if (v === "i") return "in";
+  if (v === "o") return "out";
+  return v.replace(/\s+/g,"_");
+}
+
 /* ===========================
    Name normalization
    =========================== */
@@ -479,10 +482,6 @@ function refreshUiLocks(){
   dockPdbInput.disabled    = !(metaLoaded && klifsLoaded && alignLoaded && dockLoaded);
   featureLabelModeSelect.disabled = !coreReady;
 
-  yLabelMaxLenInput.disabled = !coreReady;
-  yLabelShortModeSelect.disabled = !coreReady;
-  leftMarginInput.disabled = !coreReady;
-
   const compareReady = coreReady && alignLoaded && dockLoaded && safeTrim(dockKinaseInput.value)!=="";
   compareBtn.disabled = !compareReady;
 
@@ -491,6 +490,15 @@ function refreshUiLocks(){
   const canExport = residueModeActive && !!dockFreqRow;
   exportExcelBtn.disabled = !canExport;
   exportPlotsBtn.disabled = !canExport;
+
+  const canApplyThr = residueModeActive && !!dockFreqRow;
+  applyThresholdBtn.disabled = !canApplyThr;
+
+  if (thresholdHint){
+    thresholdHint.textContent = canApplyThr
+      ? "Edit the threshold, then click Apply to recompute metrics."
+      : "Run Compare to enable threshold apply.";
+  }
 
   loadInfo.innerHTML =
     `Meta <span class="pill">${metaLoaded?"OK":"Missing"}</span> ` +
@@ -647,7 +655,6 @@ function pickMetaField(obj, candidates){
   for (const c of candidates){
     if (Object.prototype.hasOwnProperty.call(obj, c) && safeTrim(obj[c])!=="") return safeTrim(obj[c]);
   }
-  // case-insensitive fallback
   const keys = Object.keys(obj||{});
   const lowMap = new Map(keys.map(k=>[k.toLowerCase(), k]));
   for (const c of candidates){
@@ -671,7 +678,6 @@ function computeKinaseFreqAndStructBinary(structRows, featureKeys, kinaseColName
     bin[kinaseKeyName] = k;
     bin.structure_ID = r[structureColName];
 
-    // carry extra metadata if present (for PDB mode y-axis annotation)
     const pdb = pickMetaField(r, ["pdb","PDB","pdb_code","pdbcode","pdb id","pdb_id"]);
     const dfg = pickMetaField(r, ["DFG","dfg","DFG_state","dfg_state","DFG conformation","dfg conformation"]);
     const aC  = pickMetaField(r, ["alphaC","alpha-c","alpha_c","alphaC_state","alpha-c helix","alphaC helix","alphaC_helix","alpha_c_helix"]);
@@ -906,7 +912,7 @@ function rebuildAvailableSelectedLists(resetSelected=false){
   if (viewMode==="kinase") items = allKinaseNames.slice();
   else if (viewMode==="family") items = familyList.slice();
   else if (viewMode==="group") items = groupList.slice();
-  else if (viewMode==="pdb") items = allKinaseNames.slice(); // choose kinase to expand to PDBs
+  else if (viewMode==="pdb") items = allKinaseNames.slice();
 
   items.sort((a,b)=>String(a).localeCompare(String(b)));
 
@@ -943,7 +949,7 @@ viewModeSelect.addEventListener("change", ()=>{
 });
 
 /* ===========================
-   Selection scope for statistics (unchanged)
+   Selection scope for statistics
    =========================== */
 function getCurrentSelectionScope(){
   const mode = viewModeSelect.value || "kinase";
@@ -956,7 +962,7 @@ function getCurrentSelectionScope(){
     if (mode==="kinase") items = allKinaseNames.slice();
     else if (mode==="family") items = familyList.slice();
     else if (mode==="group") items = groupList.slice();
-    else items = allKinaseNames.slice(); // PDB mode fallback for label only
+    else items = allKinaseNames.slice();
   }
 
   const label = `${mode}_${items.join("+")}`;
@@ -982,7 +988,6 @@ function filterKlifsStructBinaryByScope(scope){
       return set.has(meta.GROUPS);
     });
   }
-  // PDB mode: selection is kinase; structures are filtered elsewhere; keep behavior deterministic here
   return klifsStructBinaryRows.filter(r=>set.has(safeTrim(r[kinaseKeyName])));
 }
 
@@ -997,10 +1002,14 @@ function freqFromBinaryRows(binaryRows, label){
 }
 
 /* ===========================
-   PDB mode: clustering + row building
+   PDB mode clustering + dendrogram (CORRECT)
    =========================== */
 function rowVector01(row){
-  return klifsFeatureKeys.map(f=>Number(row[f])?1:0);
+  // Accept 0/1 or 0/100
+  return klifsFeatureKeys.map(f=>{
+    const v = Number(row[f]);
+    return (Number.isFinite(v) && v>0) ? 1 : 0;
+  });
 }
 function jaccardDistanceVec(a,b){
   let inter=0, uni=0;
@@ -1012,49 +1021,134 @@ function jaccardDistanceVec(a,b){
   if (!uni) return 0;
   return 1 - inter/uni;
 }
-
-// Simple greedy "cluster-ish" ordering by nearest neighbor chaining
-function orderBySimilarityGreedy(rows){
-  const n = rows.length;
-  if (n<=2) return rows;
-
-  const vecs = rows.map(r=>rowVector01(r));
-  const avgD = Array(n).fill(0);
+function pairwiseDistanceMatrixFromVectors(vecs){
+  const n = vecs.length;
+  const D = Array.from({length:n},()=>Array(n).fill(0));
   for (let i=0;i<n;i++){
-    let s=0;
-    for (let j=0;j<n;j++){
-      if (i===j) continue;
-      s += jaccardDistanceVec(vecs[i], vecs[j]);
+    for (let j=i+1;j<n;j++){
+      const d = jaccardDistanceVec(vecs[i], vecs[j]);
+      D[i][j]=d; D[j][i]=d;
     }
-    avgD[i] = s/Math.max(1,n-1);
   }
-  // start from most "central" (smallest average distance)
-  let start=0;
-  for (let i=1;i<n;i++) if (avgD[i] < avgD[start]) start=i;
-
-  const used = new Set([start]);
-  const order = [start];
-
-  while(order.length < n){
-    const last = order[order.length-1];
-    let best=-1, bestD=Infinity;
-    for (let j=0;j<n;j++){
-      if (used.has(j)) continue;
-      const d = jaccardDistanceVec(vecs[last], vecs[j]);
-      if (d < bestD){ bestD=d; best=j; }
-    }
-    if (best<0){
-      // fallback: append any remaining
-      for (let j=0;j<n;j++) if (!used.has(j)){ best=j; break; }
-    }
-    used.add(best);
-    order.push(best);
-  }
-
-  return order.map(i=>rows[i]);
+  return D;
 }
 
-// compute similarity to docking (binary derived from docking freq >=50)
+// Hierarchical clustering (average linkage)
+function hclustAverage(distMat){
+  const n = distMat.length;
+  let clusters = [];
+  for (let i=0;i<n;i++){
+    clusters.push({ id:i, items:[i], height:0, left:null, right:null });
+  }
+  let nextId = n;
+
+  function avgDist(aItems, bItems){
+    let s=0, c=0;
+    for (const i of aItems){
+      for (const j of bItems){
+        s += distMat[i][j];
+        c++;
+      }
+    }
+    return c ? s/c : 0;
+  }
+
+  while (clusters.length > 1){
+    let bestI=0, bestJ=1, bestD=Infinity;
+    for (let i=0;i<clusters.length;i++){
+      for (let j=i+1;j<clusters.length;j++){
+        const d = avgDist(clusters[i].items, clusters[j].items);
+        if (d < bestD){
+          bestD = d; bestI=i; bestJ=j;
+        }
+      }
+    }
+    const a = clusters[bestI];
+    const b = clusters[bestJ];
+    const merged = {
+      id: nextId++,
+      items: a.items.concat(b.items),
+      height: bestD,
+      left: a,
+      right: b
+    };
+    clusters.splice(bestJ,1);
+    clusters.splice(bestI,1);
+    clusters.push(merged);
+  }
+  return clusters[0];
+}
+
+function dendrogramLeafOrder(node, out=[]){
+  if (!node.left && !node.right){
+    out.push(node.id);
+    return out;
+  }
+  dendrogramLeafOrder(node.left, out);
+  dendrogramLeafOrder(node.right, out);
+  return out;
+}
+
+function drawDendrogram(divId, root, labels){
+  if (!root) { Plotly.purge(divId); return; }
+
+  const leafOrder = dendrogramLeafOrder(root, []);
+  const xPos = new Map();
+  for (let i=0;i<leafOrder.length;i++){
+    xPos.set(leafOrder[i], i);
+  }
+
+  const segX=[], segY=[];
+  function walk(node){
+    if (!node.left && !node.right) return { x: xPos.get(node.id), y: 0 };
+    const L = walk(node.left);
+    const R = walk(node.right);
+    const y = node.height;
+
+    segX.push(L.x, L.x, null); segY.push(L.y, y, null);
+    segX.push(R.x, R.x, null); segY.push(R.y, y, null);
+    segX.push(L.x, R.x, null); segY.push(y, y, null);
+
+    return { x: (L.x+R.x)/2, y };
+  }
+  walk(root);
+
+  const tickvals = leafOrder.map((_,i)=>i);
+  const ticktext = leafOrder.map(i=>labels[i] || `leaf_${i}`);
+
+  Plotly.newPlot(divId, [{
+    x: segX, y: segY, type:"scatter", mode:"lines",
+    hoverinfo:"skip"
+  }], {
+    title: "Structure similarity dendrogram (average linkage, Jaccard)",
+    xaxis: { tickmode:"array", tickvals, ticktext, tickangle:-60, showgrid:false, zeroline:false },
+    yaxis: { title:"Distance", showgrid:true, zeroline:false },
+    margin: { l:70, r:20, t:50, b:140 },
+    height: 300
+  }, { responsive:true });
+}
+
+function computePdbClusteringAndDendrogram(rows){
+  // rows: per-structure frequency rows (0/100 per feature)
+  if (!rows || rows.length < 2){
+    return { orderedRows: rows ? rows.slice() : [], root:null, labels:[], leafOrder:[] };
+  }
+
+  const vecs = rows.map(r=>rowVector01(r));
+  const D = pairwiseDistanceMatrixFromVectors(vecs);
+  const root = hclustAverage(D);
+  const leafOrder = dendrogramLeafOrder(root, []);
+
+  // labels indexed by ORIGINAL row index
+  const labels = rows.map(r => shortenLabel(r.__labelFull || r.__label || "", 40, "tail"));
+
+  // reorder rows by leaf order
+  const orderedRows = leafOrder.map(i => rows[i]);
+
+  return { orderedRows, root, labels, leafOrder };
+}
+
+/* Similarity to docking (for highlight in PDB mode) */
 function computeDockingBinaryFromFreq(){
   if (!dockFreqRow) return null;
   return klifsFeatureKeys.map(f => (Number(dockFreqRow[f])||0) >= 50 ? 1 : 0);
@@ -1073,6 +1167,20 @@ function findMostSimilarKlifsStructureToDocking(structRows){
     }
   }
   return bestLabel;
+}
+
+/* ===========================
+   PDB mode guard
+   =========================== */
+function guardPdbModeKinaseSelection(){
+  const mode = viewModeSelect.value || "kinase";
+  if (mode !== "pdb") return true;
+  const picked = getSelectedValues();
+  if (!picked.length){
+    alert("PDB mode requires selecting at least one kinase in Selected list.");
+    return false;
+  }
+  return true;
 }
 
 /* ===========================
@@ -1103,18 +1211,6 @@ function aggregateFreqRowsByScope(scope, value){
   return out;
 }
 
-function guardPdbModeKinaseSelection(){
-  // requirement: in pdb mode force at least 1 kinase selected
-  const mode = viewModeSelect.value || "kinase";
-  if (mode !== "pdb") return true;
-  const picked = getSelectedValues();
-  if (!picked.length){
-    alert("PDB mode requires selecting at least one kinase in Selected list.");
-    return false;
-  }
-  return true;
-}
-
 function getKlifsHeatmapRowsByCurrentSelection(){
   viewMode = viewModeSelect.value || "kinase";
   const picked = getSelectedValues();
@@ -1125,6 +1221,9 @@ function getKlifsHeatmapRowsByCurrentSelection(){
       const set = new Set(picked);
       base = base.filter(r=>set.has(r[kinaseKeyName]));
     }
+    // Not PDB mode: hide dendrogram
+    Plotly.purge("pdbDendrogram");
+    lastPdbDendrogram = { root:null, labels:[], leafOrder:[] };
     return base;
   }
 
@@ -1132,6 +1231,8 @@ function getKlifsHeatmapRowsByCurrentSelection(){
     const fams = picked.length ? picked : familyList.slice();
     const rows = fams.map(f => aggregateFreqRowsByScope("family", f));
     rows.sort((a,b)=>String(a[kinaseKeyName]).localeCompare(String(b[kinaseKeyName])));
+    Plotly.purge("pdbDendrogram");
+    lastPdbDendrogram = { root:null, labels:[], leafOrder:[] };
     return rows;
   }
 
@@ -1139,35 +1240,36 @@ function getKlifsHeatmapRowsByCurrentSelection(){
     const grps = picked.length ? picked : groupList.slice();
     const rows = grps.map(g => aggregateFreqRowsByScope("group", g));
     rows.sort((a,b)=>String(a[kinaseKeyName]).localeCompare(String(b[kinaseKeyName])));
+    Plotly.purge("pdbDendrogram");
+    lastPdbDendrogram = { root:null, labels:[], leafOrder:[] };
     return rows;
   }
 
-  // === NEW: PDB MODE (all structures for selected kinase) ===
-  // rule: first selected kinase is used
+  // === PDB MODE ===
   if (!guardPdbModeKinaseSelection()) return [];
 
   const kinase = picked[0];
-  let structs = klifsStructBinaryRows
+
+  const structs = klifsStructBinaryRows
     .filter(r => safeTrim(r[kinaseKeyName]) === kinase)
     .map(r => ({...r}));
 
-  // build per-structure "frequency" rows (0/100 per feature)
+  // Build per-structure rows (0/100 per feature) + label format KINASE/PDB/DFG/alphaC
   const rows = structs.map(r=>{
     const out = {};
     out[kinaseKeyName] = kinase;
     out.structure_ID = r.structure_ID;
-    out.__pdb = r.__pdb || (alignmentPdbById.get(r.structure_ID)||"");
-    out.__dfg = r.__dfg || "";
-    out.__alphac = r.__alphac || "";
+
+    const pdb = safeTrim(r.__pdb || alignmentPdbById.get(r.structure_ID) || "NA");
+    const dfg = normalizeStateInOut(r.__dfg || "");
+    const ac  = normalizeStateInOut(r.__alphac || "");
+
+    out.__pdb = pdb;
+    out.__dfg = dfg;
+    out.__alphac = ac;
     out.__n = 1;
 
-    const sid = safeTrim(r.structure_ID);
-    const pdb = safeTrim(out.__pdb) || "NA";
-    const dfg = safeTrim(out.__dfg) || "NA";
-    const ac  = safeTrim(out.__alphac) || "NA";
-
-    // full label used for hover; display will be shortened later
-    out.__labelFull = `${pdb} | ${sid} | DFG ${dfg} | alpha-C ${ac}`;
+    out.__labelFull = `${kinase}/${pdb}/${dfg}/${ac}`;
     out.__label = out.__labelFull;
 
     for (const f of klifsFeatureKeys){
@@ -1176,10 +1278,18 @@ function getKlifsHeatmapRowsByCurrentSelection(){
     return out;
   });
 
-  // cluster sort by interaction similarity (greedy chaining)
-  const ordered = orderBySimilarityGreedy(rows);
+  // Cluster + draw dendrogram + reorder rows
+  const cl = computePdbClusteringAndDendrogram(rows);
+  lastPdbDendrogram = { root: cl.root, labels: cl.labels, leafOrder: cl.leafOrder };
+  if (cl.root){
+    drawDendrogram("pdbDendrogram", cl.root, cl.labels);
+  } else {
+    Plotly.purge("pdbDendrogram");
+  }
 
-  // if docking compare exists, compute best match and store for highlight
+  const ordered = cl.orderedRows;
+
+  // update docking similarity highlight label in PDB mode
   if (residueModeActive && dockFreqRow){
     lastKlifsHighlightedRowLabel = findMostSimilarKlifsStructureToDocking(ordered);
   } else {
@@ -1288,52 +1398,29 @@ function drawHeatmap(targetDivId, rows, featureDisplayMap, title){
 
   const x = klifsFeatureKeys.map(f=>featureDisplayMap.get(f) || f);
 
-  // y label shortening to align docking pose
-  const maxLen = Number(yLabelMaxLenInput.value || 28);
-  const shortMode = yLabelShortModeSelect.value || "tail";
-
+  // Fixed Y label max length 40 (no UI controls)
   const yFull = rows.map(r=>r.__label ?? r[kinaseKeyName] ?? "row");
-  const yDisp = yFull.map(s => shortenLabel(s, maxLen, shortMode));
+  const yDispRaw = yFull.map(s => shortenLabel(s, 40, "tail"));
+  let yDisp = yDispRaw.slice();
+
+  // highlight: most similar row -> red ticktext (KLIFS heatmap only)
+  if (targetDivId === "klifsHeatmap" && lastKlifsHighlightedRowLabel){
+    const idx = yFull.findIndex(v => v === lastKlifsHighlightedRowLabel);
+    if (idx >= 0){
+      yDisp[idx] = `<b><span style="color:#b42318">${yDispRaw[idx]}</span></b>`;
+    }
+  }
 
   const z = rows.map(r=>klifsFeatureKeys.map(f=>{
     const v=Number(r[f]);
     return Number.isFinite(v) ? v : 0;
   }));
 
-  // highlight row (only in KLIFS heatmap, PDB mode + docking available)
-  const shapes = [];
-  const annotations = [];
-
-  if (targetDivId === "klifsHeatmap" && lastKlifsHighlightedRowLabel){
-    // find matching by full label
-    const idx = yFull.findIndex(v => v === lastKlifsHighlightedRowLabel);
-    if (idx >= 0){
-      const yCat = yDisp[idx]; // visible category
-      shapes.push({
-        type: "rect",
-        xref: "paper",
-        yref: "y",
-        x0: 0, x1: 1,
-        y0: yCat, y1: yCat,
-        line: { width: 0 },
-        fillcolor: "rgba(31,122,224,0.15)"
-      });
-      annotations.push({
-        xref: "paper", yref: "y",
-        x: 1.01, y: yCat,
-        xanchor: "left",
-        text: "Most similar to docking",
-        showarrow: false,
-        font: { size: 12, color: "#1f3e75" }
-      });
-    }
-  }
-
-  const leftMargin = Number(leftMarginInput.value || 240);
+  const leftMargin = 240;
 
   Plotly.newPlot(targetDivId, [{
     x,
-    y: yDisp,
+    y: yDisp,   // IMPORTANT: trace y uses yDisp
     z,
     type:"heatmap",
     colorscale: makeTwoToneColorscale(),
@@ -1342,17 +1429,14 @@ function drawHeatmap(targetDivId, rows, featureDisplayMap, title){
     colorbar:{ title:"Frequency percent" },
     customdata: yFull.map((full, i)=>({
       fullLabel: full,
-      displayLabel: yDisp[i],
       pdb: rows[i].__pdb || "",
-      dfg: rows[i].__dfg || "",
-      alphac: rows[i].__alphac || "",
       structure_ID: rows[i].structure_ID || ""
     })),
     hovertemplate:
       "<b>%{x}</b><br>" +
       "Row: %{customdata.fullLabel}<br>" +
       (targetDivId==="klifsHeatmap"
-        ? "PDB: %{customdata.pdb} | DFG: %{customdata.dfg} | alpha-C: %{customdata.alphac}<br>"
+        ? "PDB: %{customdata.pdb}<br>"
         : "") +
       "Value: %{z:.1f}<extra></extra>"
   }], {
@@ -1361,8 +1445,6 @@ function drawHeatmap(targetDivId, rows, featureDisplayMap, title){
     yaxis:{ title:"Rows" },
     margin:{ l:leftMargin, r:20, t:50, b:170 },
     height: Math.max(560, 26*rows.length + 240),
-    shapes,
-    annotations
   }, { responsive:true });
 }
 
@@ -1372,8 +1454,6 @@ function drawHeatmap(targetDivId, rows, featureDisplayMap, title){
 runKlifsHeatmapBtn.addEventListener("click", ()=>{
   try{
     if (!(metaLoaded && klifsLoaded)) return;
-
-    // PDB mode guard (force at least 1 kinase)
     if (!guardPdbModeKinaseSelection()) return;
 
     const rows = getKlifsHeatmapRowsByCurrentSelection();
@@ -1392,7 +1472,7 @@ runKlifsHeatmapBtn.addEventListener("click", ()=>{
       `Selected <span class="pill">${pickedText}</span> ` +
       `X labels <span class="pill">${xMode}</span>` +
       (viewModeSelect.value==="pdb"
-        ? `<br><span class="pill">Clustered by similarity</span> <span class="pill">Y includes PDB/DFG/alpha-C (hover shows full)</span>`
+        ? `<br><span class="pill">Clustered by similarity</span> <span class="pill">Y format: kinase/pdb/dfg/alphaC</span>`
         : "");
   }catch(err){
     console.error(err);
@@ -1487,7 +1567,6 @@ function processDockingPoseTable(data2D, sid){
   }
   if (!raw.length) throw new Error("No valid docking rows found.");
 
-  // dedup by Name keep best DS
   const best = new Map();
   for (const r of raw){
     if (!best.has(r.Name)) best.set(r.Name, r);
@@ -1569,7 +1648,7 @@ function drawDiffPlot(dockFreq, klifsFreq, fmap){
 }
 
 /* ===========================
-   MDS + PERMANOVA (unchanged)
+   MDS + PERMANOVA
    =========================== */
 function jaccardDistance(a,b){
   let inter=0, uni=0;
@@ -1744,7 +1823,7 @@ function drawMds(vectors, labels){
 }
 
 /* ===========================
-   Confusion matrix + metrics (unchanged)
+   Confusion matrix + metrics
    =========================== */
 function computeConfusion(dockFreq, klifsFreq, klifsThreshold){
   const thr = clamp01(klifsThreshold) * 100;
@@ -1841,9 +1920,6 @@ function recomputeAllCompareOutputs(){
   if (!residueModeActive || !dockFreqRow) return;
 
   const scope = getCurrentSelectionScope();
-
-  // IMPORTANT: In PDB mode, scope.items is kinase list; for stats we keep existing semantics:
-  // KLIFS_struct is filtered by scope (kinase/family/group/pdb->kinase). This preserves original behavior.
   const klifsStruct = filterKlifsStructBinaryByScope(scope);
   const klifsFreq = freqFromBinaryRows(klifsStruct, `KLIFS ${scope.mode} ${scope.items.join("+")}`);
 
@@ -1915,9 +1991,9 @@ compareBtn.addEventListener("click", ()=>{
     dockBinaryRows = proc.dockBinary;
     dockFreqRow = proc.freq;
 
-    // redraw KLIFS heatmap using residue labels and current selection
     if (!guardPdbModeKinaseSelection()) return;
 
+    // redraw KLIFS heatmap using residue labels and current selection
     const rows = getKlifsHeatmapRowsByCurrentSelection();
     lastKlifsRows = rows.slice();
     drawHeatmap("klifsHeatmap", rows, residueFeatureMap, "KLIFS interaction frequency");
@@ -1928,7 +2004,7 @@ compareBtn.addEventListener("click", ()=>{
     // stats
     recomputeAllCompareOutputs();
 
-    // if currently in PDB mode, refresh highlight (most similar to docking)
+    // If PDB mode, ensure highlight + dendrogram correspond to current ordering
     if ((viewModeSelect.value || "kinase")==="pdb"){
       const pdbRows = getKlifsHeatmapRowsByCurrentSelection();
       lastKlifsRows = pdbRows.slice();
@@ -1943,26 +2019,29 @@ compareBtn.addEventListener("click", ()=>{
   }
 });
 
-// recompute confusion when threshold changes
-klifsThresholdInput.addEventListener("input", ()=>{
+// Apply threshold (explicit button to avoid lag)
+applyThresholdBtn.addEventListener("click", ()=>{
   if (!residueModeActive || !dockFreqRow) return;
   recomputeAllCompareOutputs();
 });
+klifsThresholdInput.addEventListener("keydown", (e)=>{
+  if (e.key === "Enter"){
+    e.preventDefault();
+    applyThresholdBtn.click();
+  }
+});
 
 /* ===========================
-   Export Excel and plots (unchanged except stays compatible)
+   Export Excel and plots
    =========================== */
 function buildHeatmapTable(rows, fmap){
   const xLabels = klifsFeatureKeys.map(f=>fmap.get(f) || f);
   const out = [];
   for (const r of rows){
     const rowObj = { Row: r.__label ?? r[kinaseKeyName] ?? "row" };
-    // include optional metadata columns if present
-    if (r.__pdb!=null || r.__dfg!=null || r.__alphac!=null || r.structure_ID!=null){
+    if (r.__pdb!=null || r.structure_ID!=null){
       rowObj.PDB = r.__pdb || "";
       rowObj.structure_ID = r.structure_ID || "";
-      rowObj.DFG = r.__dfg || "";
-      rowObj.alphaC = r.__alphac || "";
     }
     for (let i=0;i<klifsFeatureKeys.length;i++){
       const f = klifsFeatureKeys[i];
@@ -2059,6 +2138,7 @@ exportPlotsBtn.addEventListener("click", async ()=>{
     await exportPlotDiv("diffPlot",     `${base}__Diff_plot.png`);
     await exportPlotDiv("mdsPlot",      `${base}__MDS.png`);
     await exportPlotDiv("confusionPlot",`${base}__Confusion.png`);
+    await exportPlotDiv("pdbDendrogram",`${base}__PDB_dendrogram.png`);
   }catch(err){
     console.error(err);
     alert("Plot export failed: " + err.message);
@@ -2073,10 +2153,6 @@ function resetWorkflowState(){
   featureLabelModeSelect.value = "auto";
   dockPdbInput.value = "";
 
-  yLabelMaxLenInput.value = 28;
-  yLabelShortModeSelect.value = "tail";
-  leftMarginInput.value = 240;
-
   selectedList.innerHTML = "";
   rebuildAvailableSelectedLists(true);
 
@@ -2085,6 +2161,7 @@ function resetWorkflowState(){
   Plotly.purge("diffPlot");
   Plotly.purge("mdsPlot");
   Plotly.purge("confusionPlot");
+  Plotly.purge("pdbDendrogram");
 
   summaryInfo.innerHTML = "";
 
@@ -2108,6 +2185,7 @@ function resetWorkflowState(){
   };
 
   lastKlifsHighlightedRowLabel = "";
+  lastPdbDendrogram = { root:null, labels:[], leafOrder:[] };
 
   setStatus("Reset complete. Files remain loaded.");
   refreshUiLocks();
@@ -2119,35 +2197,10 @@ resetBtn.addEventListener("click", ()=>{
 });
 
 /* ===========================
-   Extra UI re-render hooks
-   =========================== */
-featureLabelModeSelect.addEventListener("change", ()=>{
-  // do not auto-rerender; keep original behavior
-});
-yLabelMaxLenInput.addEventListener("change", ()=>{
-  if (!lastKlifsRows?.length) return;
-  const fmap = buildFeatureDisplayMapForKlifs();
-  drawHeatmap("klifsHeatmap", lastKlifsRows, fmap, "KLIFS interaction frequency");
-});
-yLabelShortModeSelect.addEventListener("change", ()=>{
-  if (!lastKlifsRows?.length) return;
-  const fmap = buildFeatureDisplayMapForKlifs();
-  drawHeatmap("klifsHeatmap", lastKlifsRows, fmap, "KLIFS interaction frequency");
-});
-leftMarginInput.addEventListener("change", ()=>{
-  if (!lastKlifsRows?.length) return;
-  const fmap = buildFeatureDisplayMapForKlifs();
-  drawHeatmap("klifsHeatmap", lastKlifsRows, fmap, "KLIFS interaction frequency");
-});
-
-/* ===========================
    Init
    =========================== */
 viewModeSelect.value = "kinase";
 featureLabelModeSelect.value = "auto";
-yLabelMaxLenInput.value = 28;
-yLabelShortModeSelect.value = "tail";
-leftMarginInput.value = 240;
 refreshUiLocks();
 </script>
 </body>
