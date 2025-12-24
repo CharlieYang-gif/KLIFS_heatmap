@@ -54,10 +54,9 @@
     .btn-danger{ background:#fff; color:#7a271a; border:1px solid #f2c7c2; }
     .btn-danger:hover{ background:#fff2f1; }
 
-    #klifsHeatmap, #dockHeatmap, #diffPlot, #mdsPlot, #confusionPlot, #pdbDendrogram{
+    #klifsHeatmap, #dockHeatmap, #diffPlot, #mdsPlot, #confusionPlot{
       width:100%; min-height:520px; margin-top:10px; background:#fff; border:1px solid #eee; border-radius:12px;
     }
-    #pdbDendrogram{ min-height:260px; }
     #dockHeatmap{
       border:3px solid var(--border-strong);
       box-shadow:0 2px 10px rgba(31,122,224,0.12);
@@ -138,7 +137,6 @@
 
   <div class="panel">
     <h2>2 KLIFS heatmap</h2>
-    <div id="pdbDendrogram"></div>
 
     <div class="box-note muted">
       Select view mode, move items into Selected, then render KLIFS heatmap. Empty selection means all.
@@ -199,8 +197,9 @@
 
     <h3>KLIFS heatmap</h3>
     <div class="muted small" id="klifsYLegend" style="margin-top:6px;">
-      Y label (PDB mode): <span class="pill">KINASE/PDB/DFG/alphaC</span> (example: CLK4/6FYV/in/in). DFG/alphaC removed from hover.
+      Y label (PDB mode): <span class="pill">KINASE/PDB/DFG/alphaC</span> (example: CLK4/6FYV/in/in).
     </div>
+
     <div id="klifsHeatmap"></div>
 
     <hr/>
@@ -1089,47 +1088,131 @@ function dendrogramLeafOrder(node, out=[]){
   return out;
 }
 
-function drawDendrogram(divId, root, labels){
-  if (!root) { Plotly.purge(divId); return; }
+function computeHorizontalDendrogramSegments(root, leafOrder) {
+  const yPos = new Map();
+  for (let i = 0; i < leafOrder.length; i++) yPos.set(leafOrder[i], i);
 
-  const leafOrder = dendrogramLeafOrder(root, []);
-  const xPos = new Map();
-  for (let i=0;i<leafOrder.length;i++){
-    xPos.set(leafOrder[i], i);
-  }
+  const segX = [];
+  const segY = [];
 
-  const segX=[], segY=[];
   function walk(node){
-    if (!node.left && !node.right) return { x: xPos.get(node.id), y: 0 };
+    if (!node.left && !node.right){
+      return { x: 0, y: yPos.get(node.id) };
+    }
     const L = walk(node.left);
     const R = walk(node.right);
-    const y = node.height;
+    const x = node.height;
 
-    segX.push(L.x, L.x, null); segY.push(L.y, y, null);
-    segX.push(R.x, R.x, null); segY.push(R.y, y, null);
-    segX.push(L.x, R.x, null); segY.push(y, y, null);
+    segX.push(L.x, x, null); segY.push(L.y, L.y, null);
+    segX.push(R.x, x, null); segY.push(R.y, R.y, null);
+    segX.push(x, x, null);   segY.push(L.y, R.y, null);
 
-    return { x: (L.x+R.x)/2, y };
+    return { x, y: (L.y + R.y) / 2 };
   }
+
   walk(root);
+  return { segX, segY };
+}
 
-  const tickvals = leafOrder.map((_,i)=>i);
-  const ticktext = leafOrder.map(i=>labels[i] || `leaf_${i}`);
+/* IMPORTANT FIX:
+   - Heatmap y is numeric indices 0..n-1 (NOT categorical strings),
+     so it can share y-axis with dendrogram segments.
+   - yaxis ticktext shows formatted labels.
+*/
+function drawHeatmapWithAlignedDendrogram(targetDivId, rows, featureDisplayMap, title, root, leafOrder) {
+  if (!rows.length){
+    Plotly.purge(targetDivId);
+    return;
+  }
 
-  Plotly.newPlot(divId, [{
-    x: segX, y: segY, type:"scatter", mode:"lines",
-    hoverinfo:"skip"
-  }], {
-    title: "Structure similarity dendrogram (average linkage, Jaccard)",
-    xaxis: { tickmode:"array", tickvals, ticktext, tickangle:-60, showgrid:false, zeroline:false },
-    yaxis: { title:"Distance", showgrid:true, zeroline:false },
-    margin: { l:70, r:20, t:50, b:140 },
-    height: 300
+  const xHM = klifsFeatureKeys.map(f => featureDisplayMap.get(f) || f);
+
+  const yFull = rows.map(r => r.__label ?? r[kinaseKeyName] ?? "row");
+  const yDispRaw = yFull.map(s => shortenLabel(s, 40, "tail"));
+  const yDisp = yDispRaw.slice();
+
+  if (lastKlifsHighlightedRowLabel){
+    const idx = yFull.findIndex(v => v === lastKlifsHighlightedRowLabel);
+    if (idx >= 0){
+      yDisp[idx] = `<b><span style="color:#b42318">${yDispRaw[idx]}</span></b>`;
+    }
+  }
+
+  const z = rows.map(r => klifsFeatureKeys.map(f => {
+    const v = Number(r[f]);
+    return Number.isFinite(v) ? v : 0;
+  }));
+
+  const height = Math.max(560, 26*rows.length + 240);
+
+  const { segX, segY } = computeHorizontalDendrogramSegments(root, leafOrder);
+  const yIdx = Array.from({length: rows.length}, (_,i)=>i);
+
+  const dendroTrace = {
+    x: segX,
+    y: segY,
+    type: "scatter",
+    mode: "lines",
+    hoverinfo: "skip",
+    xaxis: "x",
+    yaxis: "y",
+    name: "Dendrogram"
+  };
+
+  const heatmapTrace = {
+    x: xHM,
+    y: yIdx,
+    z,
+    type: "heatmap",
+    colorscale: makeTwoToneColorscale(),
+    zmin: 0,
+    zmax: 100,
+    colorbar: { title:"Frequency percent" },
+    xaxis: "x2",
+    yaxis: "y",
+    customdata: yFull.map((full, i)=>({
+      fullLabel: full,
+      pdb: rows[i].__pdb || "",
+      structure_ID: rows[i].structure_ID || ""
+    })),
+    hovertemplate:
+      "<b>%{x}</b><br>" +
+      "Row: %{customdata.fullLabel}<br>" +
+      "PDB: %{customdata.pdb}<br>" +
+      "Value: %{z:.1f}<extra></extra>"
+  };
+
+  Plotly.newPlot(targetDivId, [dendroTrace, heatmapTrace], {
+    title,
+    grid: { rows: 1, columns: 2, pattern: "independent" },
+
+    xaxis: {
+      domain: [0.0, 0.18],
+      title: "",
+      showgrid: true,
+      zeroline: false,
+      ticks: "outside"
+    },
+
+    yaxis: {
+      tickmode: "array",
+      tickvals: yIdx,
+      ticktext: yDisp,
+      autorange: "reversed"
+    },
+
+    xaxis2: {
+      domain: [0.20, 1.0],
+      title: "Features",
+      tickangle: -90
+    },
+
+    margin: { l: 240, r: 20, t: 50, b: 170 },
+    height
   }, { responsive:true });
 }
 
 function computePdbClusteringAndDendrogram(rows){
-  // rows: per-structure frequency rows (0/100 per feature)
   if (!rows || rows.length < 2){
     return { orderedRows: rows ? rows.slice() : [], root:null, labels:[], leafOrder:[] };
   }
@@ -1139,10 +1222,7 @@ function computePdbClusteringAndDendrogram(rows){
   const root = hclustAverage(D);
   const leafOrder = dendrogramLeafOrder(root, []);
 
-  // labels indexed by ORIGINAL row index
   const labels = rows.map(r => shortenLabel(r.__labelFull || r.__label || "", 40, "tail"));
-
-  // reorder rows by leaf order
   const orderedRows = leafOrder.map(i => rows[i]);
 
   return { orderedRows, root, labels, leafOrder };
@@ -1221,8 +1301,6 @@ function getKlifsHeatmapRowsByCurrentSelection(){
       const set = new Set(picked);
       base = base.filter(r=>set.has(r[kinaseKeyName]));
     }
-    // Not PDB mode: hide dendrogram
-    Plotly.purge("pdbDendrogram");
     lastPdbDendrogram = { root:null, labels:[], leafOrder:[] };
     return base;
   }
@@ -1231,7 +1309,6 @@ function getKlifsHeatmapRowsByCurrentSelection(){
     const fams = picked.length ? picked : familyList.slice();
     const rows = fams.map(f => aggregateFreqRowsByScope("family", f));
     rows.sort((a,b)=>String(a[kinaseKeyName]).localeCompare(String(b[kinaseKeyName])));
-    Plotly.purge("pdbDendrogram");
     lastPdbDendrogram = { root:null, labels:[], leafOrder:[] };
     return rows;
   }
@@ -1240,7 +1317,6 @@ function getKlifsHeatmapRowsByCurrentSelection(){
     const grps = picked.length ? picked : groupList.slice();
     const rows = grps.map(g => aggregateFreqRowsByScope("group", g));
     rows.sort((a,b)=>String(a[kinaseKeyName]).localeCompare(String(b[kinaseKeyName])));
-    Plotly.purge("pdbDendrogram");
     lastPdbDendrogram = { root:null, labels:[], leafOrder:[] };
     return rows;
   }
@@ -1254,7 +1330,6 @@ function getKlifsHeatmapRowsByCurrentSelection(){
     .filter(r => safeTrim(r[kinaseKeyName]) === kinase)
     .map(r => ({...r}));
 
-  // Build per-structure rows (0/100 per feature) + label format KINASE/PDB/DFG/alphaC
   const rows = structs.map(r=>{
     const out = {};
     out[kinaseKeyName] = kinase;
@@ -1278,18 +1353,11 @@ function getKlifsHeatmapRowsByCurrentSelection(){
     return out;
   });
 
-  // Cluster + draw dendrogram + reorder rows
   const cl = computePdbClusteringAndDendrogram(rows);
   lastPdbDendrogram = { root: cl.root, labels: cl.labels, leafOrder: cl.leafOrder };
-  if (cl.root){
-    drawDendrogram("pdbDendrogram", cl.root, cl.labels);
-  } else {
-    Plotly.purge("pdbDendrogram");
-  }
 
   const ordered = cl.orderedRows;
 
-  // update docking similarity highlight label in PDB mode
   if (residueModeActive && dockFreqRow){
     lastKlifsHighlightedRowLabel = findMostSimilarKlifsStructureToDocking(ordered);
   } else {
@@ -1398,12 +1466,10 @@ function drawHeatmap(targetDivId, rows, featureDisplayMap, title){
 
   const x = klifsFeatureKeys.map(f=>featureDisplayMap.get(f) || f);
 
-  // Fixed Y label max length 40 (no UI controls)
   const yFull = rows.map(r=>r.__label ?? r[kinaseKeyName] ?? "row");
   const yDispRaw = yFull.map(s => shortenLabel(s, 40, "tail"));
   let yDisp = yDispRaw.slice();
 
-  // highlight: most similar row -> red ticktext (KLIFS heatmap only)
   if (targetDivId === "klifsHeatmap" && lastKlifsHighlightedRowLabel){
     const idx = yFull.findIndex(v => v === lastKlifsHighlightedRowLabel);
     if (idx >= 0){
@@ -1420,7 +1486,7 @@ function drawHeatmap(targetDivId, rows, featureDisplayMap, title){
 
   Plotly.newPlot(targetDivId, [{
     x,
-    y: yDisp,   // IMPORTANT: trace y uses yDisp
+    y: yDisp,
     z,
     type:"heatmap",
     colorscale: makeTwoToneColorscale(),
@@ -1460,7 +1526,18 @@ runKlifsHeatmapBtn.addEventListener("click", ()=>{
     lastKlifsRows = rows.slice();
     const fmap = buildFeatureDisplayMapForKlifs();
 
-    drawHeatmap("klifsHeatmap", rows, fmap, "KLIFS interaction frequency");
+    if ((viewModeSelect.value || "kinase") === "pdb" && lastPdbDendrogram.root) {
+      drawHeatmapWithAlignedDendrogram(
+        "klifsHeatmap",
+        rows,
+        fmap,
+        "KLIFS interaction frequency",
+        lastPdbDendrogram.root,
+        lastPdbDendrogram.leafOrder
+      );
+    } else {
+      drawHeatmap("klifsHeatmap", rows, fmap, "KLIFS interaction frequency");
+    }
 
     const picked = getSelectedValues();
     const pickedText = picked.length ? picked.join(", ") : "All";
@@ -1996,7 +2073,19 @@ compareBtn.addEventListener("click", ()=>{
     // redraw KLIFS heatmap using residue labels and current selection
     const rows = getKlifsHeatmapRowsByCurrentSelection();
     lastKlifsRows = rows.slice();
-    drawHeatmap("klifsHeatmap", rows, residueFeatureMap, "KLIFS interaction frequency");
+
+    if ((viewModeSelect.value || "kinase") === "pdb" && lastPdbDendrogram.root) {
+      drawHeatmapWithAlignedDendrogram(
+        "klifsHeatmap",
+        rows,
+        residueFeatureMap,
+        "KLIFS interaction frequency",
+        lastPdbDendrogram.root,
+        lastPdbDendrogram.leafOrder
+      );
+    } else {
+      drawHeatmap("klifsHeatmap", rows, residueFeatureMap, "KLIFS interaction frequency");
+    }
 
     // docking heatmap
     drawHeatmap("dockHeatmap", [dockFreqRow], residueFeatureMap, `Docking interaction frequency (aligned)`);
@@ -2008,7 +2097,19 @@ compareBtn.addEventListener("click", ()=>{
     if ((viewModeSelect.value || "kinase")==="pdb"){
       const pdbRows = getKlifsHeatmapRowsByCurrentSelection();
       lastKlifsRows = pdbRows.slice();
-      drawHeatmap("klifsHeatmap", pdbRows, residueFeatureMap, "KLIFS interaction frequency");
+
+      if (lastPdbDendrogram.root){
+        drawHeatmapWithAlignedDendrogram(
+          "klifsHeatmap",
+          pdbRows,
+          residueFeatureMap,
+          "KLIFS interaction frequency",
+          lastPdbDendrogram.root,
+          lastPdbDendrogram.leafOrder
+        );
+      } else {
+        drawHeatmap("klifsHeatmap", pdbRows, residueFeatureMap, "KLIFS interaction frequency");
+      }
     }
 
   }catch(err){
@@ -2133,12 +2234,11 @@ exportPlotsBtn.addEventListener("click", async ()=>{
   try{
     if (!residueModeActive || !dockFreqRow) return;
     const base = makeBaseExportName();
-    await exportPlotDiv("klifsHeatmap", `${base}__KLIFS_heatmap.png`);
+    await exportPlotDiv("klifsHeatmap", `${base}__KLIFS_heatmap.png`); // includes dendrogram in PDB mode
     await exportPlotDiv("dockHeatmap",  `${base}__Docking_heatmap.png`);
     await exportPlotDiv("diffPlot",     `${base}__Diff_plot.png`);
     await exportPlotDiv("mdsPlot",      `${base}__MDS.png`);
     await exportPlotDiv("confusionPlot",`${base}__Confusion.png`);
-    await exportPlotDiv("pdbDendrogram",`${base}__PDB_dendrogram.png`);
   }catch(err){
     console.error(err);
     alert("Plot export failed: " + err.message);
@@ -2161,7 +2261,6 @@ function resetWorkflowState(){
   Plotly.purge("diffPlot");
   Plotly.purge("mdsPlot");
   Plotly.purge("confusionPlot");
-  Plotly.purge("pdbDendrogram");
 
   summaryInfo.innerHTML = "";
 
