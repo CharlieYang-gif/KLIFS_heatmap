@@ -1972,8 +1972,46 @@ function drawConfusionPlot(conf){
     hoverinfo:"skip"
   }], {
     title:"Confusion matrix",
-    xaxis:{ showgrid:false, zeroline:false },
-    yaxis:{ showgrid:false, zeroline:false },
+     // 固定成 2x2 的座標系，畫格線才不會飄
+    xaxis:{
+      range:[-0.5, 1.5],
+      tickmode:"array",
+      tickvals:[0,1],
+      ticktext:["Pred −","Pred +"],
+      showgrid:false,
+      zeroline:false,
+      showline:true,
+      linecolor:"#111111",
+      linewidth:1
+    },
+    yaxis:{
+      range:[-0.5, 1.5],
+      tickmode:"array",
+      tickvals:[0,1],
+      ticktext:["True −","True +"],
+      showgrid:false,
+      zeroline:false,
+      showline:true,
+      linecolor:"#111111",
+      linewidth:1
+    },
+    shapes: [
+      // outer border
+      { type:"rect", xref:"x", yref:"y",
+        x0:-0.5, x1:1.5, y0:-0.5, y1:1.5,
+        line:{ color:"#111111", width:2 }, fillcolor:"rgba(0,0,0,0)"
+      },
+      // vertical split
+      { type:"line", xref:"x", yref:"y",
+        x0:0.5, x1:0.5, y0:-0.5, y1:1.5,
+        line:{ color:"#111111", width:1 }
+      },
+      // horizontal split
+      { type:"line", xref:"x", yref:"y",
+        x0:-0.5, x1:1.5, y0:0.5, y1:0.5,
+        line:{ color:"#111111", width:1 }
+      }
+    ],
     annotations: [...cellAnn, metricAnn],
     margin:{ l:90, r:220, t:50, b:60 },
     height:360
