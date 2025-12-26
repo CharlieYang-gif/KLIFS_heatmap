@@ -1118,7 +1118,7 @@ function drawHeatmapFixedGutter({
   const heatStart = labelEnd + gap;
 
   const rowFull = rows.map(r => r.__label ?? r[kinaseKeyName] ?? "row");
-  const rowDisp = rowFull.map(s => shortenLabel(s, 44, "tail"));
+  const rowDisp = rowFull.map(s => shortenLabel(s, 40, "tail"));
 
   const rowDispColored = rowDisp.map((s, i)=>{
     if (highlightFullLabel && rowFull[i] === highlightFullLabel){
@@ -1952,7 +1952,7 @@ function drawConfusionPlot(conf){
     x:a.x, y:a.y,
     text: a.text,
     showarrow:false,
-    font:{ size:18, color:"#111111" }
+    font:{ size:16, color:"#111111" }
   }));
 
   const metricAnn = {
@@ -1960,7 +1960,7 @@ function drawConfusionPlot(conf){
     text: metricLines,
     showarrow:false,
     align:"left",
-    font:{ size:12, color:"#333333" }
+    font:{ size:16, color:"#333333" }
   };
 
   Plotly.newPlot("confusionPlot", [{
