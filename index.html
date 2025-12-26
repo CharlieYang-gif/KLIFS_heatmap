@@ -1126,7 +1126,7 @@ function drawHeatmapFixedGutter({
     }
     return s;
   });
-
+  const yIdx = rowDispColored.map((_, i) => i);
   const { xVals, tickvals, ticktext } = buildKlifsPositionTick();
   const colHover = buildColumnHoverText(featureMapForHover);
 
@@ -1138,7 +1138,7 @@ function drawHeatmapFixedGutter({
   // heatmap trace (always xaxis2)
   const heatmapTrace = {
     x: xVals,
-    y: rowDispColored,
+    y: yIdx,
     z,
     type:"heatmap",
     colorscale: makeTwoToneColorscale(),
@@ -1180,7 +1180,7 @@ function drawHeatmapFixedGutter({
     xref: "paper",
     yref: "y",
     x: labelEnd - 0.006,
-    y: rowDispColored[i],
+    y: i,
     xanchor: "right",
     align: "right",
     text: lab,
@@ -1220,9 +1220,11 @@ function drawHeatmapFixedGutter({
 
     yaxis: {
       domain: [0, 1],
-      showticklabels: false,  // always off; labels in middle gutter
+      showticklabels: false,
       showgrid: false,
-      zeroline: false
+      zeroline: false,
+      range: [-0.5, rows.length - 0.5]   // ✅ 固定成 N 列
+      // 如果你想讓第一列在最上面，可再加 autorange:"reversed"
     },
 
     annotations
