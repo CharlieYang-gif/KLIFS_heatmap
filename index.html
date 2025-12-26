@@ -6,61 +6,119 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
   <style>
     :root{
+      /* unified 6-digit hex */
       --bg:#f0eee9;
       --panel:#ffffff;
       --text:#111111;
       --muted:#4d4d4d;
-      --primary:#6ea9d2; 
-      --primary-dark:#000000;
+
+      /* Nature/Cell-ish: restrained accent */
+      --primary:#2b6cb0;
+      --primary-dark:#1f4f84;
+
       --border:#d9d9d9;
       --border-strong:#bfbfbf;
       --danger:#b00020;
       --ok:#1b5e20;
       --pill-bg:#f2f2f2;
+
       --shadow:0 1px 3px rgba(0,0,0,0.06);
     }
-    body{ font-family: Arial, Helvetica, system-ui, -apple-system, Segoe UI, sans-serif; margin:0; padding:16px 24px; background:var(--bg); color:var(--text); }
-    h1{ margin:0 0 12px 0; color:var(--primary); }
+
+    body{
+      font-family: Arial, Helvetica, system-ui, -apple-system, Segoe UI, sans-serif;
+      margin:0;
+      padding:16px 24px;
+      background:var(--bg);
+      color:var(--text);
+    }
+
+    h1{ margin:0 0 12px 0; color:var(--text); letter-spacing:0.2px; }
     h2{ margin:0 0 10px 0; }
     h3{ margin:12px 0 6px 0; }
-    .panel{ background:var(--panel); border-radius:10px; padding:18px 20px; margin-bottom:16px; box-shadow:var(--shadow); border:1px solid #f0f0f0; }
+
+    .panel{
+      background:var(--panel);
+      border-radius:10px;
+      padding:18px 20px;
+      margin-bottom:16px;
+      box-shadow:var(--shadow);
+      border:1px solid #f0f0f0;
+    }
+
     .muted{ color:var(--muted); font-size:13px; line-height:1.55; }
     .small{ font-size:12px; }
+
     .status{ font-weight:800; color:#8a5a00; }
-    .pill{ display:inline-block; padding:2px 10px; border-radius:999px; background:var(--pill-bg); color:var(--primary); font-weight:800; font-size:12px; border:1px solid #dbe7ff; }
+
+    .pill{
+      display:inline-block;
+      padding:2px 10px;
+      border-radius:999px;
+      background:var(--pill-bg);
+      color:var(--primary);
+      font-weight:800;
+      font-size:12px;
+      border:1px solid #dbe7ff;
+    }
+
     .flex-row{ display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
     .field{ min-width:260px; }
+
     label{ font-weight:800; display:block; margin-bottom:6px; }
+
     input[type="file"], input[type="text"], input[type="number"], select, button{
-      border:1px solid #ccc; border-radius:8px; padding:10px; font-size:13px; background:#fff;
+      border:1px solid #cccccc;
+      border-radius:8px;
+      padding:10px;
+      font-size:13px;
+      background:#ffffff;
     }
-    button{ background:var(--primary); color:#fff; border:none; font-weight:800; cursor:pointer; }
+
+    button{
+      background:var(--primary);
+      color:#ffffff;
+      border:none;
+      font-weight:800;
+      cursor:pointer;
+    }
     button:hover{ background:var(--primary-dark); }
-    button:disabled{ background:#ccc; cursor:not-allowed; }
+    button:disabled{ background:#cccccc; cursor:not-allowed; }
     input:disabled, select:disabled{ background:#f1f1f1; cursor:not-allowed; }
-    hr{ border:0; border-top:1px solid #eee; margin:14px 0; }
+
+    hr{ border:0; border-top:1px solid #eeeeee; margin:14px 0; }
 
     .dual{ display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; }
     .col{ flex:1; min-width:260px; }
     .midcol{ min-width:140px; display:flex; flex-direction:column; gap:10px; justify-content:center; }
     .selectbox{ width:100%; min-height:240px; }
-    .box-note{ border:1px dashed #ddd; border-radius:10px; padding:10px; background:#fafafa; }
+
+    .box-note{ border:1px dashed #dddddd; border-radius:10px; padding:10px; background:#fafafa; }
+
     .btn-secondary{ background:#f3f6ff; color:#1f3e75; border:1px solid #cfe0ff; }
     .btn-secondary:hover{ background:#e7efff; }
-    .btn-danger{ background:#fff; color:#7a271a; border:1px solid #f2c7c2; }
+
+    .btn-danger{ background:#ffffff; color:#7a271a; border:1px solid #f2c7c2; }
     .btn-danger:hover{ background:#fff2f1; }
 
     #klifsHeatmap, #dockHeatmap, #diffPlot, #mdsPlot, #confusionPlot{
-      width:100%; min-height:520px; margin-top:10px; background:#fff; border:1px solid #eee; border-radius:12px;
+      width:100%;
+      min-height:520px;
+      margin-top:10px;
+      background:#ffffff;
+      border:1px solid #eeeeee;
+      border-radius:12px;
     }
     #dockHeatmap{
-      border:3px solid var(--border-strong);
-      box-shadow:0 2px 10px rgba(31,122,224,0.12);
+      border:2px solid var(--border-strong);
+      box-shadow:0 2px 10px rgba(43,108,176,0.10);
     }
-    details{ border:1px solid #eee; border-radius:10px; padding:10px 12px; background:#fafafa; }
-    summary{ cursor:pointer; font-weight:800; color:#334; outline:none; }
+
+    details{ border:1px solid #eeeeee; border-radius:10px; padding:10px 12px; background:#fafafa; }
+    summary{ cursor:pointer; font-weight:800; color:#334455; outline:none; }
     .inline{ display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap; }
   </style>
 </head>
@@ -305,8 +363,7 @@ let lastCompare = {
 /* ===========================
    Helpers
    =========================== */
-
-  function plotlyPaperLayoutBase(){
+function plotlyPaperLayoutBase(){
   return {
     paper_bgcolor: "#FFFFFF",
     plot_bgcolor: "#FFFFFF",
@@ -316,11 +373,11 @@ let lastCompare = {
       color: "#111111"
     },
     title: {
-      font: { size: 13 }
+      font: { size: 13, color:"#111111" }
     }
   };
 }
-  
+
 function setStatus(msg){ statusText.textContent = msg; }
 function safeTrim(v){ return (v==null) ? "" : String(v).trim(); }
 function clamp01(x){ x=Number(x); if(!Number.isFinite(x)) return 0.5; return Math.min(1, Math.max(0, x)); }
@@ -463,7 +520,7 @@ function refreshUiLocks(){
 
   dockPdbInput.disabled = !(metaLoaded && klifsLoaded && alignLoaded && dockLoaded);
 
-  const compareReady = coreReady && alignLoaded && dockLoaded; // PDB can be inferred from docking
+  const compareReady = coreReady && alignLoaded && dockLoaded;
   compareBtn.disabled = !compareReady;
 
   resetBtn.disabled = !coreReady;
@@ -629,7 +686,6 @@ function collapseKlifsToHpHb(data2D, nMetaCols, ifpCols){
   return { structRows, featureKeys };
 }
 
-// attempt to extract PDB/DFG/alphaC from any meta fields
 function pickMetaField(obj, candidates){
   for (const c of candidates){
     if (Object.prototype.hasOwnProperty.call(obj, c) && safeTrim(obj[c])!=="") return safeTrim(obj[c]);
@@ -737,7 +793,7 @@ klifsIfpInput.addEventListener("change", async (e)=>{
 });
 
 /* ===========================
-   Alignment CSV/TSV load (NEW)
+   Alignment CSV/TSV load
    =========================== */
 function parseAlignmentCsv(text){
   const { header, rows } = parseCsvLoose(text);
@@ -829,7 +885,6 @@ dockXlsxInput.addEventListener("change", async (e)=>{
     refreshUiLocks();
   }
 });
-
 dockPdbInput.addEventListener("input", refreshUiLocks);
 
 /* ===========================
@@ -839,7 +894,6 @@ function getSelectedValues(){
   return Array.from(selectedList.options).map(o=>o.value);
 }
 
-// canonical rebuild of available after any change (NEW behavior)
 function moveSelected(fromSel, toSel){
   const opts = Array.from(fromSel.selectedOptions);
   for (const opt of opts){
@@ -851,7 +905,6 @@ function moveSelected(fromSel, toSel){
     }
     fromSel.removeChild(opt);
   }
-  // rebuild available in canonical order minus selected (requirement #5)
   rebuildAvailableSelectedLists(false);
 }
 
@@ -984,7 +1037,6 @@ function buildResidueMapsByStructureId(structureId){
   return { resToKlifs, klifsToRes };
 }
 
-// requirement #3: missing residue -> _HP / _HB
 function buildResidueFeatureMapFromSid(sid){
   const fmap = new Map();
   const { klifsToRes } = buildResidueMapsByStructureId(sid);
@@ -995,7 +1047,7 @@ function buildResidueFeatureMapFromSid(sid){
     const pos=parseInt(m[1],10);
     const kind=m[2].toUpperCase();
     const res=klifsToRes.get(pos);
-    if (res==null) fmap.set(f, `_${kind}`);
+    if (res==null) fmap.set(f, `_${kind}`);      // requirement #3
     else fmap.set(f, `${res}-${kind}`);
   }
   return fmap;
@@ -1176,13 +1228,16 @@ function computePdbClustering(rows){
 }
 
 /* ===========================
-   Heatmap drawing (tickvals/ticktext to avoid label merge)
+   Heatmap drawing
    =========================== */
 function buildXTick(fmap){
-  const labels = klifsFeatureKeys.map(f => {
+  // Reduce crowding: show HP label every 5 positions; hide HB always
+  const labels = klifsFeatureKeys.map((f, i) => {
+    if (!String(f).endsWith("-HP")) return "";
     const lab = fmap.get(f) || f;
-    if (lab.endsWith("-HB")) return "";  // 不顯示
-    return lab;
+
+    const hpIndex = Math.floor(i / 2); // HP/HB pair index
+    return (hpIndex % 5 === 0) ? lab : "";
   });
   const tickvals = labels.map((_,i)=>i);
   const ticktext = labels;
@@ -1194,6 +1249,8 @@ function drawSimpleHeatmap(targetDivId, rows, featureDisplayMap, title){
     Plotly.purge(targetDivId);
     return;
   }
+
+  const base = plotlyPaperLayoutBase();
 
   const { tickvals, ticktext } = buildXTick(featureDisplayMap);
   const xIdx = tickvals;
@@ -1214,7 +1271,7 @@ function drawSimpleHeatmap(targetDivId, rows, featureDisplayMap, title){
     return Number.isFinite(v) ? v : 0;
   }));
 
-  Plotly.newPlot(targetDivId, [{
+  const data = [{
     x: xIdx,
     y: yDisp,
     z,
@@ -1228,66 +1285,74 @@ function drawSimpleHeatmap(targetDivId, rows, featureDisplayMap, title){
       structure_ID: rows[i].structure_ID || ""
     })),
     hovertemplate:
-      "<b>%{x}</b><br>" +
+      "<b>Feature index %{x}</b><br>" +
       "Row: %{customdata.fullLabel}<br>" +
       (targetDivId==="klifsHeatmap" ? "PDB: %{customdata.pdb}<br>" : "") +
       "Value: %{z:.1f}<extra></extra>"
-  }], {
-    title,
-    xaxis:{ title:"Features", tickangle:-90, tickmode:"array", tickvals, ticktext },
+  }];
+
+  const layout = {
+    ...base,
+    title: { text: title },
+    xaxis:{ title:"Features", tickangle:-90, tickmode:"array", tickvals, ticktext, tickfont:{ size: 9 } },
     yaxis:{ title:"Rows" },
-    margin:{ l:40, r:20, t:40, b:140 },
+    margin:{ l:40, r:20, t:40, b:150 },
     height: Math.max(560, 26*rows.length + 240),
-  }, { responsive:true });
+  };
+
+  Plotly.newPlot(targetDivId, data, layout, { responsive:true });
 }
 
-// requirement #2: PDB mode layout dendrogram -> y label -> heatmap
+/* ===========================
+   PDB mode three-column plot
+   dendrogram -> y labels (annotations) -> heatmap
+   =========================== */
 function drawPdbHeatmapThreeColumn({
   divId,
   dendroTrace,
   heatmapTrace,
-  rowLabels,        // 已排序好的 y labels
-  featureKeys,      // e.g. ["7-HP","7-HB","8-HP","8-HB",...]
-  featureLabelMap,  // Map: featureKey -> display label (e.g. "7")
+  rowLabels,
+  featureKeys,
+  featureLabelMap,
   titleText
 }) {
-  /* ---------- domain configuration (VERY IMPORTANT) ---------- */
-  const dendroEnd = 0.025;     // 2.5% width
-  const labelEnd  = 0.125;     // 10% for y labels
+  const base = plotlyPaperLayoutBase();
+
+  // Make dendrogram narrow; label column compact; heatmap wide
+  const dendroEnd = 0.040;     // 4.0%
+  const labelEnd  = 0.155;     // 11.5% for y labels
   const gap = 0.008;
   const heatStart = labelEnd + gap;
 
-  /* ---------- x-axis handling: show HP only ---------- */
+  // X axis: show HP only, with thinning handled via buildXTick
+  const { tickvals, ticktext } = buildXTick(featureLabelMap);
   const xVals = featureKeys.map((_, i) => i);
-  const xTickText = featureKeys.map(f =>
-    f.endsWith("-HP") ? (featureLabelMap.get(f) || f) : ""
-  );
 
+  // ensure heatmap uses the same x indices
   heatmapTrace.x = xVals;
   heatmapTrace.y = rowLabels;
 
-  /* ---------- y labels as annotations ---------- */
-  const annotations = rowLabels.map((lab, i) => ({
+  // y labels as annotations in middle column
+  const annotations = rowLabels.map((lab) => ({
     xref: "paper",
     yref: "y",
     x: labelEnd - 0.004,
     y: lab,
     xanchor: "right",
     align: "right",
-    text: lab,
+    text: shortenLabel(lab, 52, "tail"),
     showarrow: false,
     font: { size: 11, color: "#111111" }
   }));
-
-  /* ---------- layout ---------- */
-  const base = plotlyPaperLayoutBase();
 
   const layout = {
     ...base,
     title: { text: titleText },
 
-    margin: { l: 20, r: 20, t: 40, b: 140 },
+    // tighter margins so KLIFS and Docking look similarly wide
+    margin: { l: 20, r: 18, t: 40, b: 150 },
 
+    // dendrogram axis
     xaxis: {
       domain: [0, dendroEnd],
       showticklabels: false,
@@ -1295,13 +1360,14 @@ function drawPdbHeatmapThreeColumn({
       zeroline: false
     },
 
+    // heatmap axis
     xaxis2: {
       domain: [heatStart, 1],
       tickmode: "array",
-      tickvals: xVals,
-      ticktext: xTickText,
+      tickvals: tickvals,
+      ticktext: ticktext,
       tickangle: -90,
-      tickfont: { size: 10 },
+      tickfont: { size: 9 },
       title: "Features",
       showgrid: false,
       zeroline: false
@@ -1317,15 +1383,59 @@ function drawPdbHeatmapThreeColumn({
     annotations
   };
 
-  Plotly.newPlot(
+  // Force dendrogram onto xaxis, heatmap onto xaxis2
+  dendroTrace.xaxis = "x";
+  dendroTrace.yaxis = "y";
+
+  const hm = { ...heatmapTrace, xaxis:"x2", yaxis:"y" };
+
+  Plotly.newPlot(divId, [dendroTrace, hm], layout, { responsive:true });
+}
+
+/* Helper to build dendrogram + call three-column draw */
+function drawPdbHeatmapWithThreeColumns(divId, orderedRows, fmap, titleText, root, leafOrder){
+  const rowLabels = orderedRows.map(r => r.__label ?? r[kinaseKeyName] ?? "row");
+
+  // dendrogram segments are in y=0..n-1 coordinates; map to rowLabels
+  const seg = computeHorizontalDendrogramSegmentsFlipped(root, leafOrder);
+
+  const mapY = (y) => {
+    if (y==null) return null;
+    const idx = Math.round(Number(y));
+    if (!Number.isFinite(idx)) return null;
+    return rowLabels[Math.max(0, Math.min(rowLabels.length-1, idx))];
+  };
+
+  const dendroTrace = {
+    type: "scatter",
+    mode: "lines",
+    x: seg.segX,
+    y: seg.segY.map(mapY),
+    hoverinfo: "skip",
+    line: { width: 1, color: "#111111" }
+  };
+
+  const z = orderedRows.map(r => klifsFeatureKeys.map(f => Number(r[f]) || 0));
+
+  const heatmapTrace = {
+    type: "heatmap",
+    z,
+    colorscale: makeTwoToneColorscale(),
+    zmin: 0,
+    zmax: 100,
+    colorbar: { title: "Frequency percent" },
+    hovertemplate: "Row: %{y}<br>Value: %{z:.1f}<extra></extra>"
+  };
+
+  drawPdbHeatmapThreeColumn({
     divId,
-    [
-      dendroTrace,
-      { ...heatmapTrace, xaxis: "x2", yaxis: "y" }
-    ],
-    layout,
-    { responsive: true }
-  );
+    dendroTrace,
+    heatmapTrace,
+    rowLabels,
+    featureKeys: klifsFeatureKeys,
+    featureLabelMap: fmap,
+    titleText
+  });
 }
 
 /* ===========================
@@ -1457,7 +1567,8 @@ runKlifsHeatmapBtn.addEventListener("click", ()=>{
       const fmap = residueModeActive ? residueFeatureMap : new Map(klifsFeatureKeys.map(f=>[f,f]));
 
       if (res.root && rows.length >= 2){
-        drawPdbHeatmapWithSwappedLabels("klifsHeatmap", rows, fmap, "KLIFS interaction frequency", res.root, res.leafOrder);
+        // FIX: use the new three-column PDB draw
+        drawPdbHeatmapWithThreeColumns("klifsHeatmap", rows, fmap, "KLIFS interaction frequency", res.root, res.leafOrder);
       }else{
         drawSimpleHeatmap("klifsHeatmap", rows, fmap, "KLIFS interaction frequency");
       }
@@ -1611,7 +1722,7 @@ function processDockingPoseTable(data2D, sid){
 }
 
 /* ===========================
-   Diff plot (unchanged)
+   Diff plot
    =========================== */
 function drawDiffPlot(dockFreq, klifsFreq, fmap){
   if (!dockFreq || !klifsFreq){
@@ -1638,13 +1749,16 @@ function drawDiffPlot(dockFreq, klifsFreq, fmap){
   const yKlifs = items.map(it=>it.klifs);
   const yDiff = items.map(it=>it.diff);
 
+  const base = plotlyPaperLayoutBase();
+
   Plotly.newPlot("diffPlot", [
     { x, y:yDock,  type:"bar", name:"Docking frequency", yaxis:"y1" },
     { x, y:yKlifs, type:"bar", name:"KLIFS frequency",  yaxis:"y1" },
     { x, y:yDiff,  type:"scatter", mode:"lines+markers", name:"Delta Docking minus KLIFS", yaxis:"y2" }
   ], {
-    title:"Docking vs KLIFS",
-    xaxis:{ tickangle:-90, title:"Features" },
+    ...base,
+    title:{ text:"Docking vs KLIFS" },
+    xaxis:{ tickangle:-90, title:"Features", tickfont:{ size: 9 } },
     yaxis:{ title:"Frequency percent" },
     yaxis2:{ title:"Delta", overlaying:"y", side:"right" },
     barmode:"group",
@@ -1657,7 +1771,7 @@ function drawDiffPlot(dockFreq, klifsFreq, fmap){
 }
 
 /* ===========================
-   MDS + PERMANOVA (unchanged)
+   MDS + PERMANOVA
    =========================== */
 function jaccardDistance(a,b){
   let inter=0, uni=0;
@@ -1816,11 +1930,14 @@ function drawMds(vectors, labels){
     else { xD.push(mds.x[i]); yD.push(mds.y[i]); }
   }
 
+  const base = plotlyPaperLayoutBase();
+
   Plotly.newPlot("mdsPlot", [
     { x:xK, y:yK, type:"scatter", mode:"markers", name:`KLIFS (n=${xK.length})`, opacity:0.45, marker:{ size:9, symbol:"triangle-up" } },
     { x:xD, y:yD, type:"scatter", mode:"markers", name:`Docking (n=${xD.length})`, opacity:0.85, marker:{ size:8 } }
   ], {
-    title:"MDS with Jaccard distance",
+    ...base,
+    title:{ text:"MDS with Jaccard distance" },
     xaxis:{ title:"Dimension 1" },
     yaxis:{ title:"Dimension 2" },
     margin:{ l:70, r:20, t:50, b:50 },
@@ -1832,7 +1949,9 @@ function drawMds(vectors, labels){
 }
 
 /* ===========================
-   Confusion matrix + metrics (requirement #6)
+   Confusion matrix + metrics
+   FIX: numbers were invisible because zmax was 1 while counts >> 1
+   Also enforce textfont + borders
    =========================== */
 function computeConfusion(dockFreq, klifsFreq, klifsThreshold){
   const thr = clamp01(klifsThreshold) * 100;
@@ -1874,10 +1993,11 @@ function drawConfusionPlot(conf){
     [conf.FN, conf.TP],
   ];
 
+  const zmax = Math.max(conf.TN, conf.FP, conf.FN, conf.TP, 1);
+
   const x = ["Pred −", "Pred +"];
   const y = ["True −", "True +"];
 
-  // no color: force white colorscale
   const white = [[0, "#ffffff"], [1, "#ffffff"]];
 
   const fmt = (v)=> (v==null ? "NA" : v.toFixed(3));
@@ -1890,11 +2010,14 @@ function drawConfusionPlot(conf){
     `F1 ${conf.f1==null ? "NA" : fmt(conf.f1)}`
   ].join("<br>");
 
+  const base = plotlyPaperLayoutBase();
+
   Plotly.newPlot("confusionPlot", [{
     x,y,z,
     type:"heatmap",
     colorscale:white,
-    zmin:0, zmax:1,
+    zmin:0, zmax:zmax,
+    zauto:false,
     showscale:false,
     hoverinfo:"skip",
     text:[
@@ -1902,17 +2025,23 @@ function drawConfusionPlot(conf){
       [`FN ${conf.FN}`, `TP ${conf.TP}`],
     ],
     texttemplate:"%{text}",
+    textfont:{ color:"#111111", size:14 },
+    xgap:2,
+    ygap:2
   }], {
-    title:"Confusion matrix",
+    ...base,
+    title:{ text:"Confusion matrix" },
+    margin:{ l:90, r:230, t:50, b:50 },
+    height:360,
+    xaxis:{ showgrid:false, zeroline:false },
+    yaxis:{ showgrid:false, zeroline:false },
     annotations: [{
       xref:"paper", yref:"paper", x:1.02, y:0.98, xanchor:"left", yanchor:"top",
       text: metricLines,
       showarrow:false,
       align:"left",
-      font:{ size:12, color:"#333" }
-    }],
-    margin:{ l:90, r:220, t:50, b:50 },
-    height:360
+      font:{ size:12, color:"#333333" }
+    }]
   }, { responsive:true });
 }
 
@@ -1965,7 +2094,7 @@ function recomputeAllCompareOutputs(){
 }
 
 /* ===========================
-   Compare (PDB-driven)
+   Compare
    =========================== */
 compareBtn.addEventListener("click", ()=>{
   try{
@@ -2005,7 +2134,7 @@ compareBtn.addEventListener("click", ()=>{
       lastKlifsRows = rows.slice();
 
       if (res.root && rows.length >= 2){
-        drawPdbHeatmapWithSwappedLabels("klifsHeatmap", rows, residueFeatureMap, "KLIFS interaction frequency", res.root, res.leafOrder);
+        drawPdbHeatmapWithThreeColumns("klifsHeatmap", rows, residueFeatureMap, "KLIFS interaction frequency", res.root, res.leafOrder);
       }else{
         drawSimpleHeatmap("klifsHeatmap", rows, residueFeatureMap, "KLIFS interaction frequency");
       }
@@ -2042,7 +2171,7 @@ klifsThresholdInput.addEventListener("keydown", (e)=>{
 });
 
 /* ===========================
-   Export Excel and plots (kept; uses fmap labels)
+   Export Excel and plots
    =========================== */
 function buildHeatmapTable(rows, fmap){
   const xLabels = klifsFeatureKeys.map(f=>fmap.get(f) || f);
@@ -2158,11 +2287,11 @@ exportPlotsBtn.addEventListener("click", async ()=>{
 });
 
 /* ===========================
-   Reset (requirement #4)
+   Reset (keep Docking PDB)
    =========================== */
 function resetWorkflowState(){
   viewModeSelect.value = "kinase";
-  // requirement #4: do NOT clear manual Docking PDB
+  // do NOT clear manual Docking PDB
   // dockPdbInput.value = "";
 
   selectedList.innerHTML = "";
