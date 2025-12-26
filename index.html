@@ -1065,12 +1065,12 @@ function makeTwoToneColorscale(){
    so KLIFS/Docking always same width.
    =========================== */
 const HEATMAP_GUTTER = {
-  dendroEnd: 0.070,    // 7% of plot width reserved for dendrogram
-  labelEnd:  0.260,    // labels column ends at 26% (so label width is 19% here)
-  gap: 0.010,
+  dendroEnd: 0.050,    // 7% of plot width reserved for dendrogram
+  labelEnd:  0.180,    // labels column ends at 26% (so label width is 19% here)
+  gap: 0.008,
   dendroLineWidth: 1.5,
   dendroColor: "#111111",
-  yLabelFontSize: 11,
+  yLabelFontSize: 13,
   xTickFontSize: 9
 };
 
@@ -1951,7 +1951,7 @@ function drawConfusionPlot(conf){
     x:a.x, y:a.y,
     text: a.text,
     showarrow:false,
-    font:{ size:18, color:"#111111" }
+    font:{ size:16, color:"#111111" }
   }));
 
   const metricAnn = {
@@ -1959,7 +1959,7 @@ function drawConfusionPlot(conf){
     text: metricLines,
     showarrow:false,
     align:"left",
-    font:{ size:12, color:"#333333" }
+    font:{ size:16, color:"#333333" }
   };
 
   Plotly.newPlot("confusionPlot", [{
