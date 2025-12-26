@@ -1,4 +1,4 @@
-用這份去改：<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -1119,7 +1119,7 @@ function drawHeatmapFixedGutter({
 
   const rowFull = rows.map(r => r.__label ?? r[kinaseKeyName] ?? "row");
   const rowDisp = rowFull.map(s => shortenLabel(s, 44, "tail"));
-
+  const yIdx = rowDispColored.map((_, i) => i);
   const rowDispColored = rowDisp.map((s, i)=>{
     if (highlightFullLabel && rowFull[i] === highlightFullLabel){
       return `<b><span style="color:#b00020">${s}</span></b>`;
@@ -1138,7 +1138,7 @@ function drawHeatmapFixedGutter({
   // heatmap trace (always xaxis2)
   const heatmapTrace = {
     x: xVals,
-    y: rowDispColored,
+    y: yIdx,
     z,
     type:"heatmap",
     colorscale: makeTwoToneColorscale(),
@@ -1180,7 +1180,7 @@ function drawHeatmapFixedGutter({
     xref: "paper",
     yref: "y",
     x: labelEnd - 0.006,
-    y: rowDispColored[i],
+    y: i,
     xanchor: "right",
     align: "right",
     text: lab,
@@ -1223,6 +1223,7 @@ function drawHeatmapFixedGutter({
       showticklabels: false,  // always off; labels in middle gutter
       showgrid: false,
       zeroline: false
+      range: [-0.5, rows.length - 0.5] 
     },
 
     annotations
@@ -1970,11 +1971,53 @@ function drawConfusionPlot(conf){
     hoverinfo:"skip"
   }], {
     title:"Confusion matrix",
-    xaxis:{ showgrid:false, zeroline:false },
-    yaxis:{ showgrid:false, zeroline:false },
+
+    // 固定成 2x2 的座標系，畫格線才不會飄
+    xaxis:{
+      range:[-0.5, 1.5],
+      tickmode:"array",
+      tickvals:[0,1],
+      ticktext:["Pred −","Pred +"],
+      showgrid:false,
+      zeroline:false,
+      showline:true,
+      linecolor:"#111111",
+      linewidth:1
+    },
+    yaxis:{
+      range:[-0.5, 1.5],
+      tickmode:"array",
+      tickvals:[0,1],
+      ticktext:["True −","True +"],
+      showgrid:false,
+      zeroline:false,
+      showline:true,
+      linecolor:"#111111",
+      linewidth:1
+    },
+
+    // ✅ 這裡是新增：外框 + 格線
+    shapes: [
+      // outer border
+      { type:"rect", xref:"x", yref:"y",
+        x0:-0.5, x1:1.5, y0:-0.5, y1:1.5,
+        line:{ color:"#111111", width:2 }, fillcolor:"rgba(0,0,0,0)"
+      },
+      // vertical split
+      { type:"line", xref:"x", yref:"y",
+        x0:0.5, x1:0.5, y0:-0.5, y1:1.5,
+        line:{ color:"#111111", width:1 }
+      },
+      // horizontal split
+      { type:"line", xref:"x", yref:"y",
+        x0:-0.5, x1:1.5, y0:0.5, y1:0.5,
+        line:{ color:"#111111", width:1 }
+      }
+    ],
+
     annotations: [...cellAnn, metricAnn],
-    margin:{ l:90, r:220, t:50, b:60 },
-    height:360
+    margin:{ l:110, r:240, t:50, b:70 },
+    height:380
   }, { responsive:true });
 }
 
