@@ -1065,9 +1065,9 @@ function makeTwoToneColorscale(){
    so KLIFS/Docking always same width.
    =========================== */
 const HEATMAP_GUTTER = {
-  dendroEnd: 0.030,    // 7% of plot width reserved for dendrogram
-  labelEnd:  0.100,    // labels column ends at 26% (so label width is 19% here)
-  gap: 0.004,
+  dendroEnd: 0.020,    // 7% of plot width reserved for dendrogram
+  labelEnd:  0.070,    // labels column ends at 26% (so label width is 19% here)
+  gap: 0.008,
   dendroLineWidth: 1.5,
   dendroColor: "#111111",
   yLabelFontSize: 13,
@@ -1193,7 +1193,7 @@ function drawHeatmapFixedGutter({
     title: { text: titleText },
 
     // Reduce huge blank margins; keep enough for x ticks
-    margin: { l: 14, r: 24, t: 42, b: 128 },
+    margin: { l: 24, r: 24, t: 42, b: 128 },
 
     // dendrogram axis (left reserved)
     xaxis: {
