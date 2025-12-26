@@ -94,43 +94,11 @@
         <input type="file" id="dockXlsxInput" accept=".xlsx" disabled />
       </div>
 
-      <div class="field" style="min-width:360px;">
-        <label>Docking kinase</label>
-        <input type="text" id="dockKinaseInput" placeholder="Example CLK4" disabled />
-      </div>
-
-      <div class="field" style="min-width:340px;">
-        <label>Status</label>
-        <div class="status" id="statusText">Initialize: load Meta CSV</div>
-        <div class="muted small" id="loadInfo" style="margin-top:6px;"></div>
-      </div>
-
-      <div class="field" style="min-width:320px;">
-        <label>Quick actions</label>
-        <div class="inline">
-          <button class="btn-danger" id="resetBtn" disabled>Reset</button>
-        </div>
-      </div>
-    </div>
-
-    <details style="margin-top:12px;">
-      <summary>Advanced</summary>
-      <div class="flex-row" style="margin-top:10px;">
-        <div class="field" style="min-width:320px;">
-          <label>X label mode</label>
-          <select id="featureLabelMode" disabled>
-            <option value="auto">Auto</option>
-            <option value="klifs">KLIFS position</option>
-            <option value="residue">Residue number</option>
-          </select>
-          <div class="muted small">After Compare, residue labels are locked for alignment.</div>
-        </div>
-
-        <div class="field" style="min-width:360px;">
-          <label>Docking PDB override</label>
-          <input type="text" id="dockPdbInput" placeholder="Example 3pix" disabled />
-          <div class="muted small">Used to select the best alignment row when multiple structure_ID exist.</div>
-        </div>
+       <div class="field" style="min-width:360px;">
+        <label>Docking PDB (for alignment)</label>
+        <input type="text" id="dockPdbInput" placeholder="Example 6FYV" disabled />
+        <div class="muted small">Used to pick alignment by PDB code (case-insensitive).</div>
+       </div>
       </div>
     </details>
   </div>
@@ -255,7 +223,6 @@ const klifsIfpInput  = document.getElementById("klifsIfpInput");
 const alignXlsxInput = document.getElementById("alignXlsxInput");
 const dockXlsxInput  = document.getElementById("dockXlsxInput");
 
-const dockKinaseInput= document.getElementById("dockKinaseInput");
 const dockPdbInput   = document.getElementById("dockPdbInput");
 
 const viewModeSelect = document.getElementById("viewModeSelect");
@@ -314,7 +281,8 @@ let featureLabelMode="auto";
 let lastKlifsRows=[];
 let residueModeActive=false;
 let residueFeatureMap = new Map();
-
+let alignmentPdbToStructIds = new Map();   // pdb -> [structure_ID,...]
+  
 // derived compare state
 let lastCompare = {
   dockingKinase: "",
@@ -350,7 +318,6 @@ function sanitizeFileToken(s){
   return safeTrim(s).replace(/[^A-Za-z0-9._-]+/g, "_").replace(/_+/g,"_").replace(/^_+|_+$/g,"");
 }
 function makeBaseExportName(){
-  const dk = sanitizeFileToken(lastCompare.dockingKinase || safeTrim(dockKinaseInput.value) || "Docking");
   const sel = sanitizeFileToken(lastCompare.compareSelectedLabel || "Selection");
   return `${dk}__vs__${sel}__${nowTag()}`;
 }
@@ -477,11 +444,10 @@ function refreshUiLocks(){
   removeBtn.disabled     = !listReady;
   clearSelectedBtn.disabled = !listReady;
 
-  dockKinaseInput.disabled = !(metaLoaded && klifsLoaded && alignLoaded && dockLoaded);
   dockPdbInput.disabled    = !(metaLoaded && klifsLoaded && alignLoaded && dockLoaded);
   featureLabelModeSelect.disabled = !coreReady;
 
-  const compareReady = coreReady && alignLoaded && dockLoaded && safeTrim(dockKinaseInput.value)!=="";
+  const compareReady = coreReady && alignLoaded && dockLoaded && safeTrim(dockPdbInput.value)!=="";
   compareBtn.disabled = !compareReady;
 
   resetBtn.disabled = !coreReady;
@@ -780,7 +746,8 @@ function parseAlignmentXlsx(data2D){
   alignmentMapById = new Map();
   alignmentKinaseToStructIds = new Map();
   alignmentPdbById = new Map();
-
+  alignmentPdbToStructIds = new Map();
+  
   let n=0;
   for (let r = 1; r < data2D.length; r++) {
     const row = data2D[r];
@@ -802,8 +769,14 @@ function parseAlignmentXlsx(data2D){
     alignmentMapById.set(structId, map);
     n++;
 
-    const pdb = (idxPdb>=0) ? safeTrim(row[idxPdb]) : "";
-    if (pdb) alignmentPdbById.set(structId, pdb);
+   const pdb = (idxPdb>=0) ? safeTrim(row[idxPdb]) : "";
+    if (pdb) {
+    alignmentPdbById.set(structId, pdb);
+
+      const np = normalizePdb(pdb);
+      if (!alignmentPdbToStructIds.has(np)) alignmentPdbToStructIds.set(np, []);
+      alignmentPdbToStructIds.get(np).push(structId);
+    }
 
     const nk = normalizeNameBasic(kinase);
     if (!alignmentKinaseToStructIds.has(nk)) alignmentKinaseToStructIds.set(nk, []);
@@ -857,7 +830,7 @@ dockXlsxInput.addEventListener("change", async (e)=>{
   }
 });
 
-dockKinaseInput.addEventListener("input", refreshUiLocks);
+
 
 /* ===========================
    Selection list UI
@@ -1088,20 +1061,26 @@ function dendrogramLeafOrder(node, out=[]){
   return out;
 }
 
-function computeHorizontalDendrogramSegments(root, leafOrder) {
+function computeHorizontalDendrogramSegments(root, leafOrder, maxHeight) {
   const yPos = new Map();
   for (let i = 0; i < leafOrder.length; i++) yPos.set(leafOrder[i], i);
 
   const segX = [];
   const segY = [];
 
+  const H = Number.isFinite(maxHeight) ? maxHeight : (root?.height || 0);
+
   function walk(node){
+    // leaf: node.height = 0 -> x = H (靠近 heatmap)
+    // root: node.height = H -> x = 0
     if (!node.left && !node.right){
-      return { x: 0, y: yPos.get(node.id) };
+      return { x: H, y: yPos.get(node.id) };
     }
+
     const L = walk(node.left);
     const R = walk(node.right);
-    const x = node.height;
+
+    const x = H - node.height;
 
     segX.push(L.x, x, null); segY.push(L.y, L.y, null);
     segX.push(R.x, x, null); segY.push(R.y, R.y, null);
@@ -1111,7 +1090,7 @@ function computeHorizontalDendrogramSegments(root, leafOrder) {
   }
 
   walk(root);
-  return { segX, segY };
+  return { segX, segY, maxHeight: H };
 }
 
 /* IMPORTANT FIX:
@@ -1145,7 +1124,7 @@ function drawHeatmapWithAlignedDendrogram(targetDivId, rows, featureDisplayMap, 
 
   const height = Math.max(560, 26*rows.length + 240);
 
-  const { segX, segY } = computeHorizontalDendrogramSegments(root, leafOrder);
+ const { segX, segY, maxHeight } = computeHorizontalDendrogramSegments(root, leafOrder, root?.height || 0);
   const yIdx = Array.from({length: rows.length}, (_,i)=>i);
 
   const dendroTrace = {
@@ -1192,6 +1171,7 @@ function drawHeatmapWithAlignedDendrogram(targetDivId, rows, featureDisplayMap, 
       showgrid: true,
       zeroline: false,
       ticks: "outside"
+      range: [0, maxHeight || 0]
     },
 
     yaxis: {
@@ -1199,6 +1179,8 @@ function drawHeatmapWithAlignedDendrogram(targetDivId, rows, featureDisplayMap, 
       tickvals: yIdx,
       ticktext: yDisp,
       autorange: "reversed"
+      anchor: "x2",
+      side: "left"
     },
 
     xaxis2: {
@@ -1385,23 +1367,13 @@ function buildResidueMapsByStructureId(structureId){
   return { resToKlifs, klifsToRes };
 }
 
-function autoPickAlignmentStructureIdForDockingKinase(dk, preferredPdb){
-  const k = safeTrim(dk);
-  if (!k) return "";
-  const nk = normalizeNameBasic(k);
-  const ids = alignmentKinaseToStructIds.get(nk) || [];
+function autoPickAlignmentStructureIdForPdb(pdb){
+  const np = normalizePdb(pdb);
+  if (!np) return "";
+  const ids = alignmentPdbToStructIds.get(np) || [];
   if (!ids.length) return "";
-
-  const pref = normalizePdb(preferredPdb);
-  if (pref){
-    const matched = ids.find(sid => normalizePdb(alignmentPdbById.get(sid) || "") === pref);
-    if (matched && alignmentMapById.has(matched)) return matched;
-  }
-
-  for (const sid of ids){
-    if (alignmentMapById.has(sid)) return sid;
-  }
-  return "";
+  // 若同一 PDB 有多筆 structure_ID，先取第一筆；需要更精準可再加規則
+  return ids.find(sid => alignmentMapById.has(sid)) || ids[0] || "";
 }
 
 /* ===========================
@@ -1417,15 +1389,12 @@ function buildFeatureDisplayMapForKlifs(){
     return map;
   }
 
-  const wantResidue =
-    featureLabelMode==="residue" ||
-    (featureLabelMode==="auto" && alignLoaded && safeTrim(dockKinaseInput.value)!=="");
+ const wantResidue =
+  featureLabelMode==="residue" ||
+  (featureLabelMode==="auto" && alignLoaded && safeTrim(dockPdbInput.value)!=="");
 
-  if (!wantResidue) return map;
-
-  const dk = safeTrim(dockKinaseInput.value);
-  const preferred = safeTrim(dockPdbInput.value);
-  const sid = autoPickAlignmentStructureIdForDockingKinase(dk, preferred);
+  const pdb = safeTrim(dockPdbInput.value);
+  const sid = autoPickAlignmentStructureIdForPdb(pdb);
   if (!sid) return map;
 
   const { klifsToRes } = buildResidueMapsByStructureId(sid);
@@ -1438,6 +1407,9 @@ function buildFeatureDisplayMapForKlifs(){
     const kind = m[2].toUpperCase();
     const res = klifsToRes.get(pos);
     if (res) map.set(f, `${res}-${kind}`);
+  }
+  for (const [p, ids] of alignmentPdbToStructIds.entries()){
+    ids.sort((a,b)=>String(a).localeCompare(String(b)));
   }
   return map;
 }
@@ -2044,19 +2016,18 @@ compareBtn.addEventListener("click", ()=>{
       alert("Compare requires Meta, KLIFS IFP, alignment, and docking files.");
       return;
     }
-    const dk = safeTrim(dockKinaseInput.value);
-    if (!dk){
-      alert("Enter docking kinase.");
-      return;
-    }
-
     const manualPdb = safeTrim(dockPdbInput.value);
     const inferredPdbNorm = inferDockingPdbFromDockTable(dockRaw2D);
-    const preferredPdb = manualPdb ? manualPdb : inferredPdbNorm;
-
-    const sid = autoPickAlignmentStructureIdForDockingKinase(dk, preferredPdb);
+    const pdb = manualPdb ? manualPdb : inferredPdbNorm;
+    
+    if (!pdb){
+      alert("Enter docking PDB (e.g., 6FYV) or ensure docking file has a pdb column.");
+      return;
+    }
+    
+    const sid = autoPickAlignmentStructureIdForPdb(pdb);
     if (!sid){
-      alert("Alignment row not found for docking kinase. Check alignment kinase naming or provide PDB override.");
+      alert("Alignment row not found for the given PDB. Check alignment PDB values or docking PDB input.");
       return;
     }
     lastDockAlignmentSid = sid;
@@ -2185,7 +2156,6 @@ exportExcelBtn.addEventListener("click", ()=>{
     XLSX.utils.book_append_sheet(wb, ws3, "Diff_table");
 
     const metrics = [{
-      Docking_kinase: safeTrim(dockKinaseInput.value),
       View_mode: scope.mode,
       Selected_items: scope.items.join("+"),
       Alignment_structure_ID: lastDockAlignmentSid,
