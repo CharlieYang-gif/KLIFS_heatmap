@@ -10,16 +10,16 @@
     :root{
       --bg:#f0eee9;
       --panel:#ffffff;
-      --text:#222;
-      --muted:#666;
+      --text:#111111;
+      --muted:#4d4d4d;
       --primary:#6ea9d2; 
-      --primary-dark:#155cb0;
-      --border:#e5e7eb;
-      --border-strong:#b8c7e6;
-      --danger:#b42318;
-      --ok:#2e7d32;
-      --pill-bg:#e4cc82;
-      --shadow:0 2px 8px rgba(0,0,0,0.08);
+      --primary-dark:#000000;
+      --border:#d9d9d9;
+      --border-strong:#bfbfbf;
+      --danger:#b00020;
+      --ok:#1b5e20;
+      --pill-bg:#f2f2f2;
+      --shadow:0 1px 3px rgba(0,0,0,0.06);
     }
     body{ font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; padding:16px 24px; background:var(--bg); color:var(--text); }
     h1{ margin:0 0 12px 0; color:var(--primary); }
@@ -1220,7 +1220,7 @@ function drawSimpleHeatmap(targetDivId, rows, featureDisplayMap, title){
     title,
     xaxis:{ title:"Features", tickangle:-90, tickmode:"array", tickvals, ticktext },
     yaxis:{ title:"Rows" },
-    margin:{ l:240, r:20, t:50, b:120 },
+    margin:{ l:40, r:20, t:40, b:140 },
     height: Math.max(560, 26*rows.length + 240),
   }, { responsive:true });
 }
