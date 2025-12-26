@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+用這份去改：<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -1126,7 +1126,7 @@ function drawHeatmapFixedGutter({
     }
     return s;
   });
-  const yIdx = rowDispColored.map((_, i) => i);
+
   const { xVals, tickvals, ticktext } = buildKlifsPositionTick();
   const colHover = buildColumnHoverText(featureMapForHover);
 
@@ -1138,7 +1138,7 @@ function drawHeatmapFixedGutter({
   // heatmap trace (always xaxis2)
   const heatmapTrace = {
     x: xVals,
-    y: yIdx,
+    y: rowDispColored,
     z,
     type:"heatmap",
     colorscale: makeTwoToneColorscale(),
@@ -1180,7 +1180,7 @@ function drawHeatmapFixedGutter({
     xref: "paper",
     yref: "y",
     x: labelEnd - 0.006,
-    y: i,
+    y: rowDispColored[i],
     xanchor: "right",
     align: "right",
     text: lab,
@@ -1220,11 +1220,9 @@ function drawHeatmapFixedGutter({
 
     yaxis: {
       domain: [0, 1],
-      showticklabels: false,
+      showticklabels: false,  // always off; labels in middle gutter
       showgrid: false,
-      zeroline: false,
-      range: [-0.5, rows.length - 0.5]   // ✅ 固定成 N 列
-      // 如果你想讓第一列在最上面，可再加 autorange:"reversed"
+      zeroline: false
     },
 
     annotations
@@ -1972,46 +1970,8 @@ function drawConfusionPlot(conf){
     hoverinfo:"skip"
   }], {
     title:"Confusion matrix",
-     // 固定成 2x2 的座標系，畫格線才不會飄
-    xaxis:{
-      range:[-0.5, 1.5],
-      tickmode:"array",
-      tickvals:[0,1],
-      ticktext:["Pred −","Pred +"],
-      showgrid:false,
-      zeroline:false,
-      showline:true,
-      linecolor:"#111111",
-      linewidth:1
-    },
-    yaxis:{
-      range:[-0.5, 1.5],
-      tickmode:"array",
-      tickvals:[0,1],
-      ticktext:["True −","True +"],
-      showgrid:false,
-      zeroline:false,
-      showline:true,
-      linecolor:"#111111",
-      linewidth:1
-    },
-    shapes: [
-      // outer border
-      { type:"rect", xref:"x", yref:"y",
-        x0:-0.5, x1:1.5, y0:-0.5, y1:1.5,
-        line:{ color:"#111111", width:2 }, fillcolor:"rgba(0,0,0,0)"
-      },
-      // vertical split
-      { type:"line", xref:"x", yref:"y",
-        x0:0.5, x1:0.5, y0:-0.5, y1:1.5,
-        line:{ color:"#111111", width:1 }
-      },
-      // horizontal split
-      { type:"line", xref:"x", yref:"y",
-        x0:-0.5, x1:1.5, y0:0.5, y1:0.5,
-        line:{ color:"#111111", width:1 }
-      }
-    ],
+    xaxis:{ showgrid:false, zeroline:false },
+    yaxis:{ showgrid:false, zeroline:false },
     annotations: [...cellAnn, metricAnn],
     margin:{ l:90, r:220, t:50, b:60 },
     height:360
@@ -2321,4 +2281,3 @@ rebuildAvailableSelectedLists(true);
 </script>
 </body>
 </html>
-
