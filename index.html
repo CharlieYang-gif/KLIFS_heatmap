@@ -1065,12 +1065,12 @@ function makeTwoToneColorscale(){
    so KLIFS/Docking always same width.
    =========================== */
 const HEATMAP_GUTTER = {
-  dendroEnd: 0.050,    // 7% of plot width reserved for dendrogram
-  labelEnd:  0.180,    // labels column ends at 26% (so label width is 19% here)
-  gap: 0.008,
+  dendroEnd: 0.070,    // 7% of plot width reserved for dendrogram
+  labelEnd:  0.260,    // labels column ends at 26% (so label width is 19% here)
+  gap: 0.010,
   dendroLineWidth: 1.5,
   dendroColor: "#111111",
-  yLabelFontSize: 13,
+  yLabelFontSize: 11,
   xTickFontSize: 9
 };
 
@@ -1119,14 +1119,14 @@ function drawHeatmapFixedGutter({
 
   const rowFull = rows.map(r => r.__label ?? r[kinaseKeyName] ?? "row");
   const rowDisp = rowFull.map(s => shortenLabel(s, 44, "tail"));
-  const yIdx = rowDispColored.map((_, i) => i);
+
   const rowDispColored = rowDisp.map((s, i)=>{
     if (highlightFullLabel && rowFull[i] === highlightFullLabel){
       return `<b><span style="color:#b00020">${s}</span></b>`;
     }
     return s;
   });
-
+  const yIdx = rowDispColored.map((_, i) => i);
   const { xVals, tickvals, ticktext } = buildKlifsPositionTick();
   const colHover = buildColumnHoverText(featureMapForHover);
 
@@ -1220,10 +1220,11 @@ function drawHeatmapFixedGutter({
 
     yaxis: {
       domain: [0, 1],
-      showticklabels: false,  // always off; labels in middle gutter
+      showticklabels: false,
       showgrid: false,
-      zeroline: false
-      range: [-0.5, rows.length - 0.5] 
+      zeroline: false,
+      range: [-0.5, rows.length - 0.5]   // ✅ 固定成 N 列
+      // 如果你想讓第一列在最上面，可再加 autorange:"reversed"
     },
 
     annotations
@@ -1951,7 +1952,7 @@ function drawConfusionPlot(conf){
     x:a.x, y:a.y,
     text: a.text,
     showarrow:false,
-    font:{ size:16, color:"#111111" }
+    font:{ size:18, color:"#111111" }
   }));
 
   const metricAnn = {
@@ -1959,7 +1960,7 @@ function drawConfusionPlot(conf){
     text: metricLines,
     showarrow:false,
     align:"left",
-    font:{ size:16, color:"#333333" }
+    font:{ size:12, color:"#333333" }
   };
 
   Plotly.newPlot("confusionPlot", [{
@@ -1971,8 +1972,7 @@ function drawConfusionPlot(conf){
     hoverinfo:"skip"
   }], {
     title:"Confusion matrix",
-
-    // 固定成 2x2 的座標系，畫格線才不會飄
+     // 固定成 2x2 的座標系，畫格線才不會飄
     xaxis:{
       range:[-0.5, 1.5],
       tickmode:"array",
@@ -1995,8 +1995,6 @@ function drawConfusionPlot(conf){
       linecolor:"#111111",
       linewidth:1
     },
-
-    // ✅ 這裡是新增：外框 + 格線
     shapes: [
       // outer border
       { type:"rect", xref:"x", yref:"y",
@@ -2014,10 +2012,9 @@ function drawConfusionPlot(conf){
         line:{ color:"#111111", width:1 }
       }
     ],
-
     annotations: [...cellAnn, metricAnn],
-    margin:{ l:110, r:240, t:50, b:70 },
-    height:380
+    margin:{ l:90, r:220, t:50, b:60 },
+    height:360
   }, { responsive:true });
 }
 
