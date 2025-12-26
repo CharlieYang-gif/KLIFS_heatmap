@@ -9,22 +9,18 @@
 
   <style>
     :root{
-      /* unified 6-digit hex */
+      /* Nature/Cell-ish neutral paper UI */
       --bg:#f0eee9;
       --panel:#ffffff;
       --text:#111111;
       --muted:#4d4d4d;
-
-      /* Nature/Cell-ish: restrained accent */
-      --primary:#2b6cb0;
-      --primary-dark:#1f4f84;
-
+      --primary:#6ea9d2;
+      --primary-dark:#000000;
       --border:#d9d9d9;
       --border-strong:#bfbfbf;
       --danger:#b00020;
       --ok:#1b5e20;
       --pill-bg:#f2f2f2;
-
       --shadow:0 1px 3px rgba(0,0,0,0.06);
     }
 
@@ -36,10 +32,9 @@
       color:var(--text);
     }
 
-    h1{ margin:0 0 12px 0; color:var(--text); letter-spacing:0.2px; }
+    h1{ margin:0 0 12px 0; color:var(--primary); }
     h2{ margin:0 0 10px 0; }
     h3{ margin:12px 0 6px 0; }
-
     .panel{
       background:var(--panel);
       border-radius:10px;
@@ -48,28 +43,22 @@
       box-shadow:var(--shadow);
       border:1px solid #f0f0f0;
     }
-
     .muted{ color:var(--muted); font-size:13px; line-height:1.55; }
     .small{ font-size:12px; }
-
     .status{ font-weight:800; color:#8a5a00; }
-
     .pill{
       display:inline-block;
       padding:2px 10px;
       border-radius:999px;
       background:var(--pill-bg);
-      color:var(--primary);
+      color:var(--primary-dark);
       font-weight:800;
       font-size:12px;
       border:1px solid #dbe7ff;
     }
-
     .flex-row{ display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
     .field{ min-width:260px; }
-
     label{ font-weight:800; display:block; margin-bottom:6px; }
-
     input[type="file"], input[type="text"], input[type="number"], select, button{
       border:1px solid #cccccc;
       border-radius:8px;
@@ -77,33 +66,23 @@
       font-size:13px;
       background:#ffffff;
     }
-
-    button{
-      background:var(--primary);
-      color:#ffffff;
-      border:none;
-      font-weight:800;
-      cursor:pointer;
-    }
+    button{ background:var(--primary); color:#ffffff; border:none; font-weight:800; cursor:pointer; }
     button:hover{ background:var(--primary-dark); }
     button:disabled{ background:#cccccc; cursor:not-allowed; }
     input:disabled, select:disabled{ background:#f1f1f1; cursor:not-allowed; }
-
     hr{ border:0; border-top:1px solid #eeeeee; margin:14px 0; }
 
     .dual{ display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; }
     .col{ flex:1; min-width:260px; }
     .midcol{ min-width:140px; display:flex; flex-direction:column; gap:10px; justify-content:center; }
     .selectbox{ width:100%; min-height:240px; }
-
     .box-note{ border:1px dashed #dddddd; border-radius:10px; padding:10px; background:#fafafa; }
-
     .btn-secondary{ background:#f3f6ff; color:#1f3e75; border:1px solid #cfe0ff; }
     .btn-secondary:hover{ background:#e7efff; }
-
     .btn-danger{ background:#ffffff; color:#7a271a; border:1px solid #f2c7c2; }
     .btn-danger:hover{ background:#fff2f1; }
 
+    /* IMPORTANT: Keep the plot containers identical width behavior */
     #klifsHeatmap, #dockHeatmap, #diffPlot, #mdsPlot, #confusionPlot{
       width:100%;
       min-height:520px;
@@ -111,14 +90,15 @@
       background:#ffffff;
       border:1px solid #eeeeee;
       border-radius:12px;
+      overflow:hidden; /* helps prevent scrollbars from annotations */
     }
     #dockHeatmap{
-      border:2px solid var(--border-strong);
-      box-shadow:0 2px 10px rgba(43,108,176,0.10);
+      border:3px solid var(--border-strong);
+      box-shadow:0 2px 10px rgba(31,122,224,0.12);
     }
 
     details{ border:1px solid #eeeeee; border-radius:10px; padding:10px 12px; background:#fafafa; }
-    summary{ cursor:pointer; font-weight:800; color:#334455; outline:none; }
+    summary{ cursor:pointer; font-weight:800; color:#333344; outline:none; }
     .inline{ display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap; }
   </style>
 </head>
@@ -143,7 +123,7 @@
         <input type="file" id="klifsIfpInput" accept=".xlsx" disabled />
       </div>
       <div class="field">
-        <label>KLIFS PDB Alignment (.csv)</label>
+        <label>KLIFS PDB Alignment (.csv/.tsv)</label>
         <input type="file" id="alignCsvInput" accept=".csv,.tsv,text/csv,text/tab-separated-values" disabled />
       </div>
       <div class="field">
@@ -177,7 +157,7 @@
       Select view mode, move items into Selected, then render KLIFS heatmap. Empty selection means all.
       <br>
       PDB mode shows all structures for the first selected kinase as multiple rows, clusters rows by interaction similarity,
-      and draws a dendrogram on the left (narrow, leaves adjacent to labels then heatmap).
+      and draws a dendrogram on the left. The plot always reserves a dendrogram gutter so KLIFS and Docking heatmaps remain identical width.
     </div>
 
     <div class="flex-row" style="margin-top:10px;">
@@ -344,7 +324,7 @@ let lastDockAlignmentSid="";
 let viewMode="kinase";
 let lastKlifsRows=[];
 let residueModeActive=false;
-let residueFeatureMap = new Map();
+let residueFeatureMap = new Map();     // feature -> "123-HP" or "_HP"
 let lastKlifsHighlightedRowLabel = "";
 
 // derived compare state
@@ -372,9 +352,7 @@ function plotlyPaperLayoutBase(){
       size: 12,
       color: "#111111"
     },
-    title: {
-      font: { size: 13, color:"#111111" }
-    }
+    title: { font: { size: 13, color:"#111111" } }
   };
 }
 
@@ -452,7 +430,6 @@ function shortenLabel(s, maxLen, mode){
   if (mode==="tail"){
     return ell + str.slice(str.length-(n-1));
   }
-  // middle
   const keep=n-1;
   const left=Math.ceil(keep/2);
   const right=Math.floor(keep/2);
@@ -894,6 +871,7 @@ function getSelectedValues(){
   return Array.from(selectedList.options).map(o=>o.value);
 }
 
+// canonical rebuild of available after any change
 function moveSelected(fromSel, toSel){
   const opts = Array.from(fromSel.selectedOptions);
   for (const opt of opts){
@@ -961,10 +939,7 @@ function rebuildAvailableSelectedLists(resetSelected=false){
     selectedLabel.textContent  = "Selected kinase (PDB mode uses the first selected)";
   }
 }
-
-viewModeSelect.addEventListener("change", ()=>{
-  rebuildAvailableSelectedLists(true);
-});
+viewModeSelect.addEventListener("change", ()=>{ rebuildAvailableSelectedLists(true); });
 
 /* ===========================
    Selection scope for statistics
@@ -1037,6 +1012,7 @@ function buildResidueMapsByStructureId(structureId){
   return { resToKlifs, klifsToRes };
 }
 
+// missing residue -> _HP / _HB
 function buildResidueFeatureMapFromSid(sid){
   const fmap = new Map();
   const { klifsToRes } = buildResidueMapsByStructureId(sid);
@@ -1047,7 +1023,7 @@ function buildResidueFeatureMapFromSid(sid){
     const pos=parseInt(m[1],10);
     const kind=m[2].toUpperCase();
     const res=klifsToRes.get(pos);
-    if (res==null) fmap.set(f, `_${kind}`);      // requirement #3
+    if (res==null) fmap.set(f, `_${kind}`);
     else fmap.set(f, `${res}-${kind}`);
   }
   return fmap;
@@ -1068,7 +1044,7 @@ function autoPickAlignmentStructureIdForPdb(pdb){
 }
 
 /* ===========================
-   Plotly heatmap styles
+   Plotly styles
    =========================== */
 function makeTwoToneColorscale(){
   const t = 0.5;
@@ -1084,7 +1060,179 @@ function makeTwoToneColorscale(){
 }
 
 /* ===========================
-   PDB clustering + dendrogram
+   FIXED 3-COLUMN HEATMAP LAYOUT (CRITICAL)
+   Always reserve: [dendro gutter] [label gutter] [heatmap]
+   so KLIFS/Docking always same width.
+   =========================== */
+const HEATMAP_GUTTER = {
+  dendroEnd: 0.070,    // 7% of plot width reserved for dendrogram
+  labelEnd:  0.260,    // labels column ends at 26% (so label width is 19% here)
+  gap: 0.010,
+  dendroLineWidth: 1.5,
+  dendroColor: "#111111",
+  yLabelFontSize: 11,
+  xTickFontSize: 9
+};
+
+function buildKlifsPositionTick(){
+  // ALWAYS show KLIFS 1..85 for HP
+  const xVals = klifsFeatureKeys.map((_, i) => i);
+  const ticktext = klifsFeatureKeys.map(f=>{
+    const m = String(f).match(/^(\d+)\-(HP|HB)$/i);
+    if (!m) return "";
+    const pos = m[1];
+    const kind = m[2].toUpperCase();
+    return (kind==="HP") ? String(pos) : "";
+  });
+  return { xVals, tickvals: xVals, ticktext };
+}
+
+function buildColumnHoverText(fmap){
+  // show residue mapping in hover if available (after Compare)
+  return klifsFeatureKeys.map(f=>{
+    const m = String(f).match(/^(\d+)\-(HP|HB)$/i);
+    const pos = m ? m[1] : "?";
+    const kind = m ? m[2].toUpperCase() : "";
+    const res = fmap?.get(f) || "";
+    const resShow = (res && res !== f) ? res : "";
+    return resShow ? `KLIFS ${pos}-${kind} • ${resShow}` : `KLIFS ${pos}-${kind}`;
+  });
+}
+
+function drawHeatmapFixedGutter({
+  divId,
+  rows,
+  titleText,
+  featureMapForHover,   // Map feature-> "123-HP" etc (only for hover)
+  dendroSegments,       // {x:[], y:[], maxH:number} or null
+  highlightFullLabel,   // exact full row label to highlight (optional)
+}){
+  if (!rows || !rows.length){
+    Plotly.purge(divId);
+    return;
+  }
+
+  const base = plotlyPaperLayoutBase();
+
+  const { dendroEnd, labelEnd, gap } = HEATMAP_GUTTER;
+  const heatStart = labelEnd + gap;
+
+  const rowFull = rows.map(r => r.__label ?? r[kinaseKeyName] ?? "row");
+  const rowDisp = rowFull.map(s => shortenLabel(s, 44, "tail"));
+
+  const rowDispColored = rowDisp.map((s, i)=>{
+    if (highlightFullLabel && rowFull[i] === highlightFullLabel){
+      return `<b><span style="color:#b00020">${s}</span></b>`;
+    }
+    return s;
+  });
+
+  const { xVals, tickvals, ticktext } = buildKlifsPositionTick();
+  const colHover = buildColumnHoverText(featureMapForHover);
+
+  const z = rows.map(r=>klifsFeatureKeys.map(f=>{
+    const v=Number(r[f]);
+    return Number.isFinite(v) ? v : 0;
+  }));
+
+  // heatmap trace (always xaxis2)
+  const heatmapTrace = {
+    x: xVals,
+    y: rowDispColored,
+    z,
+    type:"heatmap",
+    colorscale: makeTwoToneColorscale(),
+    zmin:0, zmax:100,
+    colorbar:{ title:"Frequency percent" },
+    customdata: rows.map((r, i)=>({
+      fullLabel: rowFull[i],
+      pdb: r.__pdb || "",
+      structure_ID: r.structure_ID || "",
+    })),
+    hovertemplate:
+      "<b>%{customdata.fullLabel}</b><br>" +
+      "Feature: %{customdata2}<br>" +
+      "Value: %{z:.1f}<extra></extra>",
+    customdata2: [colHover], // will be broadcast by Plotly per column
+    xaxis: "x2",
+    yaxis: "y"
+  };
+
+  // dendrogram trace (always xaxis)
+  const dendroTrace = {
+    x: [],
+    y: [],
+    type: "scatter",
+    mode: "lines",
+    line: { color: HEATMAP_GUTTER.dendroColor, width: HEATMAP_GUTTER.dendroLineWidth },
+    hoverinfo: "skip",
+    xaxis: "x",
+    yaxis: "y"
+  };
+
+  if (dendroSegments && Array.isArray(dendroSegments.x) && dendroSegments.x.length){
+    dendroTrace.x = dendroSegments.x;
+    dendroTrace.y = dendroSegments.y;
+  }
+
+  // y labels as annotations in middle gutter (never clipped)
+  const annotations = rowDispColored.map((lab, i)=>({
+    xref: "paper",
+    yref: "y",
+    x: labelEnd - 0.006,
+    y: rowDispColored[i],
+    xanchor: "right",
+    align: "right",
+    text: lab,
+    showarrow: false,
+    font: { size: HEATMAP_GUTTER.yLabelFontSize, color: "#111111" }
+  }));
+
+  const layout = {
+    ...base,
+    title: { text: titleText },
+
+    // Reduce huge blank margins; keep enough for x ticks
+    margin: { l: 14, r: 24, t: 42, b: 128 },
+
+    // dendrogram axis (left reserved)
+    xaxis: {
+      domain: [0, dendroEnd],
+      showticklabels: false,
+      showgrid: false,
+      zeroline: false,
+      autorange: "reversed",    // critical: leaves at x=0 near label gutter
+      range: dendroSegments && dendroSegments.maxH ? [0, dendroSegments.maxH] : undefined
+    },
+
+    // heatmap axis (right)
+    xaxis2: {
+      domain: [heatStart, 1],
+      tickmode: "array",
+      tickvals,
+      ticktext,
+      tickangle: -90,
+      tickfont: { size: HEATMAP_GUTTER.xTickFontSize, color:"#111111" },
+      title: "KLIFS position (HP)",
+      showgrid: false,
+      zeroline: false
+    },
+
+    yaxis: {
+      domain: [0, 1],
+      showticklabels: false,  // always off; labels in middle gutter
+      showgrid: false,
+      zeroline: false
+    },
+
+    annotations
+  };
+
+  Plotly.newPlot(divId, [dendroTrace, heatmapTrace], layout, { responsive:true });
+}
+
+/* ===========================
+   PDB clustering + dendrogram (fixed)
    =========================== */
 function rowVector01(row){
   return klifsFeatureKeys.map(f=>{
@@ -1166,7 +1314,9 @@ function dendrogramLeafOrder(node, out=[]){
   dendrogramLeafOrder(node.right, out);
   return out;
 }
-function computeHorizontalDendrogramSegmentsFlipped(root, leafOrder){
+
+// FIXED: build segments with leaf x=0, node x=height, and use xaxis autorange reversed.
+function computeHorizontalDendrogramSegments(root, leafOrder){
   const yPos = new Map();
   for (let i = 0; i < leafOrder.length; i++) yPos.set(leafOrder[i], i);
 
@@ -1190,11 +1340,24 @@ function computeHorizontalDendrogramSegmentsFlipped(root, leafOrder){
   walk(root);
 
   const maxH = root.height || 0;
-  const segXFlip = segX.map(v => (v==null ? null : (maxH - v)));
-
-  return { segX: segXFlip, segY, maxH };
+  return { x: segX, y: segY, maxH };
 }
 
+function computePdbClustering(rows){
+  if (!rows || rows.length < 2){
+    return { orderedRows: rows ? rows.slice() : [], root:null, leafOrder:[] };
+  }
+  const vecs = rows.map(r=>rowVector01(r));
+  const D = pairwiseDistanceMatrixFromVectors(vecs);
+  const root = hclustAverage(D);
+  const leafOrder = dendrogramLeafOrder(root, []);
+  const orderedRows = leafOrder.map(i => rows[i]);
+  return { orderedRows, root, leafOrder };
+}
+
+/* ===========================
+   Most similar KLIFS pose (DO NOT run unless PDB mode)
+   =========================== */
 function computeDockingBinaryFromFreq(){
   if (!dockFreqRow) return null;
   return klifsFeatureKeys.map(f => (Number(dockFreqRow[f])||0) >= 50 ? 1 : 0);
@@ -1213,229 +1376,6 @@ function findMostSimilarKlifsStructureToDocking(structRows){
     }
   }
   return bestLabel;
-}
-
-function computePdbClustering(rows){
-  if (!rows || rows.length < 2){
-    return { orderedRows: rows ? rows.slice() : [], root:null, leafOrder:[] };
-  }
-  const vecs = rows.map(r=>rowVector01(r));
-  const D = pairwiseDistanceMatrixFromVectors(vecs);
-  const root = hclustAverage(D);
-  const leafOrder = dendrogramLeafOrder(root, []);
-  const orderedRows = leafOrder.map(i => rows[i]);
-  return { orderedRows, root, leafOrder };
-}
-
-/* ===========================
-   Heatmap drawing
-   =========================== */
-function buildXTick(fmap){
-  // Reduce crowding: show HP label every 5 positions; hide HB always
-  const labels = klifsFeatureKeys.map((f, i) => {
-    if (!String(f).endsWith("-HP")) return "";
-    const lab = fmap.get(f) || f;
-
-    const hpIndex = Math.floor(i / 2); // HP/HB pair index
-    return (hpIndex % 5 === 0) ? lab : "";
-  });
-  const tickvals = labels.map((_,i)=>i);
-  const ticktext = labels;
-  return { tickvals, ticktext };
-}
-
-function drawSimpleHeatmap(targetDivId, rows, featureDisplayMap, title){
-  if (!rows.length){
-    Plotly.purge(targetDivId);
-    return;
-  }
-
-  const base = plotlyPaperLayoutBase();
-
-  const { tickvals, ticktext } = buildXTick(featureDisplayMap);
-  const xIdx = tickvals;
-
-  const yFull = rows.map(r=>r.__label ?? r[kinaseKeyName] ?? "row");
-  const yDispRaw = yFull.map(s => shortenLabel(s, 40, "tail"));
-  let yDisp = yDispRaw.slice();
-
-  if (targetDivId === "klifsHeatmap" && lastKlifsHighlightedRowLabel){
-    const idx = yFull.findIndex(v => v === lastKlifsHighlightedRowLabel);
-    if (idx >= 0){
-      yDisp[idx] = `<b><span style="color:#b42318">${yDispRaw[idx]}</span></b>`;
-    }
-  }
-
-  const z = rows.map(r=>klifsFeatureKeys.map(f=>{
-    const v=Number(r[f]);
-    return Number.isFinite(v) ? v : 0;
-  }));
-
-  const data = [{
-    x: xIdx,
-    y: yDisp,
-    z,
-    type:"heatmap",
-    colorscale: makeTwoToneColorscale(),
-    zmin:0, zmax:100,
-    colorbar:{ title:"Frequency percent" },
-    customdata: yFull.map((full, i)=>({
-      fullLabel: full,
-      pdb: rows[i].__pdb || "",
-      structure_ID: rows[i].structure_ID || ""
-    })),
-    hovertemplate:
-      "<b>Feature index %{x}</b><br>" +
-      "Row: %{customdata.fullLabel}<br>" +
-      (targetDivId==="klifsHeatmap" ? "PDB: %{customdata.pdb}<br>" : "") +
-      "Value: %{z:.1f}<extra></extra>"
-  }];
-
-  const layout = {
-    ...base,
-    title: { text: title },
-    xaxis:{ title:"Features", tickangle:-90, tickmode:"array", tickvals, ticktext, tickfont:{ size: 9 } },
-    yaxis:{ title:"Rows" },
-    margin:{ l:40, r:20, t:40, b:150 },
-    height: Math.max(560, 26*rows.length + 240),
-  };
-
-  Plotly.newPlot(targetDivId, data, layout, { responsive:true });
-}
-
-/* ===========================
-   PDB mode three-column plot
-   dendrogram -> y labels (annotations) -> heatmap
-   =========================== */
-function drawPdbHeatmapThreeColumn({
-  divId,
-  dendroTrace,
-  heatmapTrace,
-  rowLabels,
-  featureKeys,
-  featureLabelMap,
-  titleText
-}) {
-  const base = plotlyPaperLayoutBase();
-
-  // Make dendrogram narrow; label column compact; heatmap wide
-  const dendroEnd = 0.040;     // 4.0%
-  const labelEnd  = 0.155;     // 11.5% for y labels
-  const gap = 0.008;
-  const heatStart = labelEnd + gap;
-
-  // X axis: show HP only, with thinning handled via buildXTick
-  const { tickvals, ticktext } = buildXTick(featureLabelMap);
-  const xVals = featureKeys.map((_, i) => i);
-
-  // ensure heatmap uses the same x indices
-  heatmapTrace.x = xVals;
-  heatmapTrace.y = rowLabels;
-
-  // y labels as annotations in middle column
-  const annotations = rowLabels.map((lab) => ({
-    xref: "paper",
-    yref: "y",
-    x: labelEnd - 0.004,
-    y: lab,
-    xanchor: "right",
-    align: "right",
-    text: shortenLabel(lab, 52, "tail"),
-    showarrow: false,
-    font: { size: 11, color: "#111111" }
-  }));
-
-  const layout = {
-    ...base,
-    title: { text: titleText },
-
-    // tighter margins so KLIFS and Docking look similarly wide
-    margin: { l: 20, r: 18, t: 40, b: 150 },
-
-    // dendrogram axis
-    xaxis: {
-      domain: [0, dendroEnd],
-      showticklabels: false,
-      showgrid: false,
-      zeroline: false
-    },
-
-    // heatmap axis
-    xaxis2: {
-      domain: [heatStart, 1],
-      tickmode: "array",
-      tickvals: tickvals,
-      ticktext: ticktext,
-      tickangle: -90,
-      tickfont: { size: 9 },
-      title: "Features",
-      showgrid: false,
-      zeroline: false
-    },
-
-    yaxis: {
-      domain: [0, 1],
-      showticklabels: false,
-      showgrid: false,
-      zeroline: false
-    },
-
-    annotations
-  };
-
-  // Force dendrogram onto xaxis, heatmap onto xaxis2
-  dendroTrace.xaxis = "x";
-  dendroTrace.yaxis = "y";
-
-  const hm = { ...heatmapTrace, xaxis:"x2", yaxis:"y" };
-
-  Plotly.newPlot(divId, [dendroTrace, hm], layout, { responsive:true });
-}
-
-/* Helper to build dendrogram + call three-column draw */
-function drawPdbHeatmapWithThreeColumns(divId, orderedRows, fmap, titleText, root, leafOrder){
-  const rowLabels = orderedRows.map(r => r.__label ?? r[kinaseKeyName] ?? "row");
-
-  // dendrogram segments are in y=0..n-1 coordinates; map to rowLabels
-  const seg = computeHorizontalDendrogramSegmentsFlipped(root, leafOrder);
-
-  const mapY = (y) => {
-    if (y==null) return null;
-    const idx = Math.round(Number(y));
-    if (!Number.isFinite(idx)) return null;
-    return rowLabels[Math.max(0, Math.min(rowLabels.length-1, idx))];
-  };
-
-  const dendroTrace = {
-    type: "scatter",
-    mode: "lines",
-    x: seg.segX,
-    y: seg.segY.map(mapY),
-    hoverinfo: "skip",
-    line: { width: 1, color: "#111111" }
-  };
-
-  const z = orderedRows.map(r => klifsFeatureKeys.map(f => Number(r[f]) || 0));
-
-  const heatmapTrace = {
-    type: "heatmap",
-    z,
-    colorscale: makeTwoToneColorscale(),
-    zmin: 0,
-    zmax: 100,
-    colorbar: { title: "Frequency percent" },
-    hovertemplate: "Row: %{y}<br>Value: %{z:.1f}<extra></extra>"
-  };
-
-  drawPdbHeatmapThreeColumn({
-    divId,
-    dendroTrace,
-    heatmapTrace,
-    rowLabels,
-    featureKeys: klifsFeatureKeys,
-    featureLabelMap: fmap,
-    titleText
-  });
 }
 
 /* ===========================
@@ -1484,31 +1424,36 @@ function getKlifsHeatmapRowsByCurrentSelection(){
   viewMode = viewModeSelect.value || "kinase";
   const picked = getSelectedValues();
 
+  // non-PDB modes: never compute "most similar"
+  if (viewMode !== "pdb"){
+    lastKlifsHighlightedRowLabel = "";
+  }
+
   if (viewMode==="kinase"){
     let base = klifsKinaseFreqRows.slice();
     if (picked.length){
       const set = new Set(picked);
       base = base.filter(r=>set.has(r[kinaseKeyName]));
     }
-    return base;
+    return { rows: base, dendro:null };
   }
 
   if (viewMode==="family"){
     const fams = picked.length ? picked : familyList.slice();
     const rows = fams.map(f => aggregateFreqRowsByScope("family", f));
     rows.sort((a,b)=>String(a[kinaseKeyName]).localeCompare(String(b[kinaseKeyName])));
-    return rows;
+    return { rows, dendro:null };
   }
 
   if (viewMode==="group"){
     const grps = picked.length ? picked : groupList.slice();
     const rows = grps.map(g => aggregateFreqRowsByScope("group", g));
     rows.sort((a,b)=>String(a[kinaseKeyName]).localeCompare(String(b[kinaseKeyName])));
-    return rows;
+    return { rows, dendro:null };
   }
 
   // PDB MODE
-  if (!guardPdbModeKinaseSelection()) return [];
+  if (!guardPdbModeKinaseSelection()) return { rows: [], dendro:null };
 
   const kinase = picked[0];
 
@@ -1542,13 +1487,18 @@ function getKlifsHeatmapRowsByCurrentSelection(){
   const cl = computePdbClustering(rows);
   const ordered = cl.orderedRows;
 
-  if (residueModeActive && dockFreqRow){
+  // IMPORTANT: only do the expensive similarity search in PDB mode
+  if (residueModeActive && dockFreqRow && ordered.length >= 2){
     lastKlifsHighlightedRowLabel = findMostSimilarKlifsStructureToDocking(ordered);
   } else {
     lastKlifsHighlightedRowLabel = "";
   }
 
-  return { rowsOrdered: ordered, root: cl.root, leafOrder: cl.leafOrder };
+  const dendro = (cl.root && ordered.length >= 2)
+    ? computeHorizontalDendrogramSegments(cl.root, cl.leafOrder)
+    : null;
+
+  return { rows: ordered, dendro };
 }
 
 /* ===========================
@@ -1559,42 +1509,28 @@ runKlifsHeatmapBtn.addEventListener("click", ()=>{
     if (!(metaLoaded && klifsLoaded)) return;
     if (!guardPdbModeKinaseSelection()) return;
 
-    if ((viewModeSelect.value || "kinase") === "pdb"){
-      const res = getKlifsHeatmapRowsByCurrentSelection();
-      const rows = res.rowsOrdered || [];
-      lastKlifsRows = rows.slice();
-
-      const fmap = residueModeActive ? residueFeatureMap : new Map(klifsFeatureKeys.map(f=>[f,f]));
-
-      if (res.root && rows.length >= 2){
-        // FIX: use the new three-column PDB draw
-        drawPdbHeatmapWithThreeColumns("klifsHeatmap", rows, fmap, "KLIFS interaction frequency", res.root, res.leafOrder);
-      }else{
-        drawSimpleHeatmap("klifsHeatmap", rows, fmap, "KLIFS interaction frequency");
-      }
-
-      const picked = getSelectedValues();
-      summaryInfo.innerHTML =
-        `View mode <span class="pill">pdb</span> ` +
-        `Rows <span class="pill">${rows.length}</span> ` +
-        `Kinase <span class="pill">${picked[0] || ""}</span> ` +
-        `X labels <span class="pill">${residueModeActive ? "Residue" : "KLIFS position"}</span>` +
-        `<br><span class="pill">Layout</span> <span class="pill">dendrogram → labels → heatmap</span>`;
-      return;
-    }
-
-    const rows = getKlifsHeatmapRowsByCurrentSelection();
+    const res = getKlifsHeatmapRowsByCurrentSelection();
+    const rows = res.rows || [];
     lastKlifsRows = rows.slice();
-    const fmap = residueModeActive ? residueFeatureMap : new Map(klifsFeatureKeys.map(f=>[f,f]));
-    drawSimpleHeatmap("klifsHeatmap", rows, fmap, "KLIFS interaction frequency");
+
+    drawHeatmapFixedGutter({
+      divId: "klifsHeatmap",
+      rows,
+      titleText: "KLIFS interaction frequency",
+      featureMapForHover: residueModeActive ? residueFeatureMap : null,
+      dendroSegments: res.dendro,
+      highlightFullLabel: (viewModeSelect.value==="pdb") ? lastKlifsHighlightedRowLabel : ""
+    });
 
     const picked = getSelectedValues();
-    const pickedText = picked.length ? picked.join(", ") : "All";
     summaryInfo.innerHTML =
       `View mode <span class="pill">${viewModeSelect.value}</span> ` +
       `Rows <span class="pill">${rows.length}</span> ` +
-      `Selected <span class="pill">${pickedText}</span> ` +
-      `X labels <span class="pill">${residueModeActive ? "Residue" : "KLIFS position"}</span>`;
+      (viewModeSelect.value==="pdb"
+        ? `Kinase <span class="pill">${picked[0] || ""}</span> <span class="pill">dendrogram reserved</span>`
+        : `Selected <span class="pill">${picked.length ? picked.join(", ") : "All"}</span>`) +
+      `<br>X axis <span class="pill">KLIFS 1–85 (HP)</span> • ` +
+      `Hover <span class="pill">${residueModeActive ? "shows residue mapping" : "shows KLIFS position"}</span>`;
   }catch(err){
     console.error(err);
     alert("KLIFS render failed: " + err.message);
@@ -1643,7 +1579,7 @@ function inferDockingPdbFromDockTable(data2D){
 
 function processDockingPoseTable(data2D, sid){
   const header = (data2D[0] || []).map(safeTrim);
-  const nameIdx = findCol(header, ["name"]);
+  const nameIdx = findCol(header, ["name","Name"]);
   if (nameIdx<0) throw new Error("Docking file must include column Name.");
   const dsIdx = findCol(header, ["r_i_docking_score","docking_score"]);
 
@@ -1722,7 +1658,7 @@ function processDockingPoseTable(data2D, sid){
 }
 
 /* ===========================
-   Diff plot
+   Diff plot (kept)
    =========================== */
 function drawDiffPlot(dockFreq, klifsFreq, fmap){
   if (!dockFreq || !klifsFreq){
@@ -1744,21 +1680,22 @@ function drawDiffPlot(dockFreq, klifsFreq, fmap){
 
   items.sort((a,b)=>b.dock - a.dock);
 
-  const x = items.map(it=>fmap.get(it.f) || it.f);
+  const x = items.map(it=>it.f); // keep raw key here (export uses fmap)
   const yDock = items.map(it=>it.dock);
   const yKlifs = items.map(it=>it.klifs);
   const yDiff = items.map(it=>it.diff);
-
-  const base = plotlyPaperLayoutBase();
 
   Plotly.newPlot("diffPlot", [
     { x, y:yDock,  type:"bar", name:"Docking frequency", yaxis:"y1" },
     { x, y:yKlifs, type:"bar", name:"KLIFS frequency",  yaxis:"y1" },
     { x, y:yDiff,  type:"scatter", mode:"lines+markers", name:"Delta Docking minus KLIFS", yaxis:"y2" }
   ], {
-    ...base,
-    title:{ text:"Docking vs KLIFS" },
-    xaxis:{ tickangle:-90, title:"Features", tickfont:{ size: 9 } },
+    title:"Docking vs KLIFS",
+    xaxis:{
+      tickangle:-90,
+      title:"Features (raw key)",
+      showgrid:false
+    },
     yaxis:{ title:"Frequency percent" },
     yaxis2:{ title:"Delta", overlaying:"y", side:"right" },
     barmode:"group",
@@ -1771,7 +1708,7 @@ function drawDiffPlot(dockFreq, klifsFreq, fmap){
 }
 
 /* ===========================
-   MDS + PERMANOVA
+   MDS + PERMANOVA (kept)
    =========================== */
 function jaccardDistance(a,b){
   let inter=0, uni=0;
@@ -1930,14 +1867,11 @@ function drawMds(vectors, labels){
     else { xD.push(mds.x[i]); yD.push(mds.y[i]); }
   }
 
-  const base = plotlyPaperLayoutBase();
-
   Plotly.newPlot("mdsPlot", [
     { x:xK, y:yK, type:"scatter", mode:"markers", name:`KLIFS (n=${xK.length})`, opacity:0.45, marker:{ size:9, symbol:"triangle-up" } },
     { x:xD, y:yD, type:"scatter", mode:"markers", name:`Docking (n=${xD.length})`, opacity:0.85, marker:{ size:8 } }
   ], {
-    ...base,
-    title:{ text:"MDS with Jaccard distance" },
+    title:"MDS with Jaccard distance",
     xaxis:{ title:"Dimension 1" },
     yaxis:{ title:"Dimension 2" },
     margin:{ l:70, r:20, t:50, b:50 },
@@ -1949,9 +1883,7 @@ function drawMds(vectors, labels){
 }
 
 /* ===========================
-   Confusion matrix + metrics
-   FIX: numbers were invisible because zmax was 1 while counts >> 1
-   Also enforce textfont + borders
+   Confusion matrix (ROBUST: ANNOTATIONS, NOT texttemplate)
    =========================== */
 function computeConfusion(dockFreq, klifsFreq, klifsThreshold){
   const thr = clamp01(klifsThreshold) * 100;
@@ -1976,7 +1908,7 @@ function computeConfusion(dockFreq, klifsFreq, klifsThreshold){
   const precision = (TP+FP) ? TP/(TP+FP) : null;
   const recall    = (TP+FN) ? TP/(TP+FN) : null;
   const specificity = (TN+FP) ? TN/(TN+FP) : null;
-  const accuracy = (TP+TN) ? (TP+TN)/(TP+TN+FP+FN) : null;
+  const accuracy = (TP+TN+FP+FN) ? (TP+TN)/(TP+TN+FP+FN) : null;
   const f1 = (precision!=null && recall!=null && (precision+recall)>0) ? (2*precision*recall/(precision+recall)) : null;
 
   return { TP, FP, TN, FN, precision, recall, specificity, accuracy, f1, thrPercent: thr, perFeature: rows };
@@ -1988,16 +1920,13 @@ function drawConfusionPlot(conf){
     return;
   }
 
+  // heatmap background: white, but keep a trace for axes + bounding box
   const z = [
-    [conf.TN, conf.FP],
-    [conf.FN, conf.TP],
+    [0,0],
+    [0,0]
   ];
-
-  const zmax = Math.max(conf.TN, conf.FP, conf.FN, conf.TP, 1);
-
   const x = ["Pred −", "Pred +"];
   const y = ["True −", "True +"];
-
   const white = [[0, "#ffffff"], [1, "#ffffff"]];
 
   const fmt = (v)=> (v==null ? "NA" : v.toFixed(3));
@@ -2010,38 +1939,42 @@ function drawConfusionPlot(conf){
     `F1 ${conf.f1==null ? "NA" : fmt(conf.f1)}`
   ].join("<br>");
 
-  const base = plotlyPaperLayoutBase();
+  // place 4 cell labels as annotations (always renders)
+  const cellAnn = [
+    { x:"Pred −", y:"True −", text:`TN ${conf.TN}` },
+    { x:"Pred +", y:"True −", text:`FP ${conf.FP}` },
+    { x:"Pred −", y:"True +", text:`FN ${conf.FN}` },
+    { x:"Pred +", y:"True +", text:`TP ${conf.TP}` },
+  ].map(a => ({
+    xref:"x", yref:"y",
+    x:a.x, y:a.y,
+    text: a.text,
+    showarrow:false,
+    font:{ size:18, color:"#111111" }
+  }));
+
+  const metricAnn = {
+    xref:"paper", yref:"paper", x:1.02, y:0.98, xanchor:"left", yanchor:"top",
+    text: metricLines,
+    showarrow:false,
+    align:"left",
+    font:{ size:12, color:"#333333" }
+  };
 
   Plotly.newPlot("confusionPlot", [{
     x,y,z,
     type:"heatmap",
     colorscale:white,
-    zmin:0, zmax:zmax,
-    zauto:false,
+    zmin:0, zmax:1,
     showscale:false,
-    hoverinfo:"skip",
-    text:[
-      [`TN ${conf.TN}`, `FP ${conf.FP}`],
-      [`FN ${conf.FN}`, `TP ${conf.TP}`],
-    ],
-    texttemplate:"%{text}",
-    textfont:{ color:"#111111", size:14 },
-    xgap:2,
-    ygap:2
+    hoverinfo:"skip"
   }], {
-    ...base,
-    title:{ text:"Confusion matrix" },
-    margin:{ l:90, r:230, t:50, b:50 },
-    height:360,
+    title:"Confusion matrix",
     xaxis:{ showgrid:false, zeroline:false },
     yaxis:{ showgrid:false, zeroline:false },
-    annotations: [{
-      xref:"paper", yref:"paper", x:1.02, y:0.98, xanchor:"left", yanchor:"top",
-      text: metricLines,
-      showarrow:false,
-      align:"left",
-      font:{ size:12, color:"#333333" }
-    }]
+    annotations: [...cellAnn, metricAnn],
+    margin:{ l:90, r:220, t:50, b:60 },
+    height:360
   }, { responsive:true });
 }
 
@@ -2077,7 +2010,7 @@ function recomputeAllCompareOutputs(){
     `Alignment <span class="pill">${lastDockAlignmentSid}</span> ` +
     `Docking ligands <span class="pill">${dockFreqRow.__n}</span> ` +
     `KLIFS structures <span class="pill">${klifsStruct.length}</span> ` +
-    `X labels <span class="pill">Residue</span><br>` +
+    `<br>X axis <span class="pill">KLIFS 1–85 (HP)</span> • Hover <span class="pill">shows residue mapping</span><br>` +
     `${permaText}`;
 
   lastCompare.dockingPdb = safeTrim(dockPdbInput.value) || inferDockingPdbFromDockTable(dockRaw2D) || "";
@@ -2094,7 +2027,7 @@ function recomputeAllCompareOutputs(){
 }
 
 /* ===========================
-   Compare
+   Compare (PDB-driven)
    =========================== */
 compareBtn.addEventListener("click", ()=>{
   try{
@@ -2126,26 +2059,28 @@ compareBtn.addEventListener("click", ()=>{
     dockBinaryRows = proc.dockBinary;
     dockFreqRow = proc.freq;
 
-    // redraw KLIFS heatmap using residue labels
-    if ((viewModeSelect.value || "kinase")==="pdb"){
-      if (!guardPdbModeKinaseSelection()) return;
-      const res = getKlifsHeatmapRowsByCurrentSelection();
-      const rows = res.rowsOrdered || [];
-      lastKlifsRows = rows.slice();
+    // redraw KLIFS heatmap (fixed gutter always)
+    const res = getKlifsHeatmapRowsByCurrentSelection();
+    lastKlifsRows = (res.rows || []).slice();
 
-      if (res.root && rows.length >= 2){
-        drawPdbHeatmapWithThreeColumns("klifsHeatmap", rows, residueFeatureMap, "KLIFS interaction frequency", res.root, res.leafOrder);
-      }else{
-        drawSimpleHeatmap("klifsHeatmap", rows, residueFeatureMap, "KLIFS interaction frequency");
-      }
-    }else{
-      const rows = getKlifsHeatmapRowsByCurrentSelection();
-      lastKlifsRows = rows.slice();
-      drawSimpleHeatmap("klifsHeatmap", rows, residueFeatureMap, "KLIFS interaction frequency");
-    }
+    drawHeatmapFixedGutter({
+      divId: "klifsHeatmap",
+      rows: res.rows || [],
+      titleText: "KLIFS interaction frequency",
+      featureMapForHover: residueFeatureMap,
+      dendroSegments: res.dendro,
+      highlightFullLabel: (viewModeSelect.value==="pdb") ? lastKlifsHighlightedRowLabel : ""  // IMPORTANT: only highlight in PDB mode
+    });
 
-    // docking heatmap
-    drawSimpleHeatmap("dockHeatmap", [dockFreqRow], residueFeatureMap, `Docking interaction frequency (aligned)`);
+    // docking heatmap: fixed gutter too (so same width as KLIFS, always)
+    drawHeatmapFixedGutter({
+      divId: "dockHeatmap",
+      rows: [dockFreqRow],
+      titleText: "Docking interaction frequency (aligned)",
+      featureMapForHover: residueFeatureMap,
+      dendroSegments: null,
+      highlightFullLabel: ""
+    });
 
     // stats
     recomputeAllCompareOutputs();
@@ -2171,10 +2106,9 @@ klifsThresholdInput.addEventListener("keydown", (e)=>{
 });
 
 /* ===========================
-   Export Excel and plots
+   Export Excel and plots (kept)
    =========================== */
 function buildHeatmapTable(rows, fmap){
-  const xLabels = klifsFeatureKeys.map(f=>fmap.get(f) || f);
   const out = [];
   for (const r of rows){
     const rowObj = { Row: r.__label ?? r[kinaseKeyName] ?? "row" };
@@ -2184,7 +2118,8 @@ function buildHeatmapTable(rows, fmap){
     }
     for (let i=0;i<klifsFeatureKeys.length;i++){
       const f = klifsFeatureKeys[i];
-      rowObj[xLabels[i]] = Number(r[f]) || 0;
+      const label = fmap?.get(f) || f;
+      rowObj[label] = Number(r[f]) || 0;
     }
     out.push(rowObj);
   }
@@ -2217,7 +2152,8 @@ exportExcelBtn.addEventListener("click", ()=>{
     XLSX.utils.book_append_sheet(wb, ws2, "Docking_heatmap");
 
     const diffData = (diffRes.items || []).map(it=>({
-      Feature: residueFeatureMap.get(it.f) || it.f,
+      Feature_raw: it.f,
+      Feature_residue: residueFeatureMap.get(it.f) || it.f,
       Docking_frequency_percent: it.dock,
       KLIFS_frequency_percent: it.klifs,
       Delta_docking_minus_klifs: it.diff
@@ -2246,7 +2182,8 @@ exportExcelBtn.addEventListener("click", ()=>{
     XLSX.utils.book_append_sheet(wb, ws4, "Metrics");
 
     const perFeat = conf.perFeature.map(r=>({
-      Feature: residueFeatureMap.get(r.feature) || r.feature,
+      Feature_raw: r.feature,
+      Feature_residue: residueFeatureMap.get(r.feature) || r.feature,
       Docking_frequency_percent: r.docking_freq,
       KLIFS_frequency_percent: r.klifs_freq,
       Truth_positive: r.truth,
@@ -2287,11 +2224,11 @@ exportPlotsBtn.addEventListener("click", async ()=>{
 });
 
 /* ===========================
-   Reset (keep Docking PDB)
+   Reset (do NOT clear manual Docking PDB)
    =========================== */
 function resetWorkflowState(){
   viewModeSelect.value = "kinase";
-  // do NOT clear manual Docking PDB
+  // IMPORTANT: do NOT clear manual Docking PDB
   // dockPdbInput.value = "";
 
   selectedList.innerHTML = "";
