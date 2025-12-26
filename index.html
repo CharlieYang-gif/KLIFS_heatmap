@@ -1070,7 +1070,7 @@ const HEATMAP_GUTTER = {
   gap: 0.010,
   dendroLineWidth: 1.5,
   dendroColor: "#111111",
-  yLabelFontSize: 11,
+  yLabelFontSize: 12,
   xTickFontSize: 9
 };
 
@@ -1930,7 +1930,7 @@ function drawConfusionPlot(conf){
   const x = ["Pred −", "Pred +"];
   const y = ["True −", "True +"];
   const white = [[0, "#ffffff"], [1, "#ffffff"]];
-
+  const CONF_FONT = 14;
   const fmt = (v)=> (v==null ? "NA" : v.toFixed(3));
   const metricLines = [
     `KLIFS thr ${conf.thrPercent.toFixed(1)}%`,
@@ -1952,7 +1952,7 @@ function drawConfusionPlot(conf){
     x:a.x, y:a.y,
     text: a.text,
     showarrow:false,
-    font:{ size:14, color:"#111111" } // Unified font size
+    font:{ size: CONT_FONT, color:"#111111" } // Unified font size
   }));
 
   const metricAnn = {
@@ -1960,7 +1960,7 @@ function drawConfusionPlot(conf){
     text: metricLines,
     showarrow:false,
     align:"left",
-    font:{ size:14, color:"#333333" } // Unified font size
+    font:{ size: CONT_FONT, color:"#333333" } // Unified font size
   };
 
   Plotly.newPlot("confusionPlot", [{
