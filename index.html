@@ -8,13 +8,13 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root{
-      --bg:#f5f5f5;
+      --bg:#f0eee9;
       --panel:#ffffff;
       --text:#222;
       --muted:#666;
       --primary:#1f7ae0;
       --primary-dark:#155cb0;
-      --border:#e6e6e6;
+      --border:#e5e7eb;
       --border-strong:#b8c7e6;
       --danger:#b42318;
       --ok:#2e7d32;
@@ -77,19 +77,19 @@
 
     <div class="flex-row" style="margin-top:10px;">
       <div class="field">
-        <label>Meta CSV with columns NAME FAMILY GROUPS</label>
+        <label>Kinase family info (.csv)</label>
         <input type="file" id="metaCsvInput" accept=".csv,.tsv,text/csv,text/tab-separated-values" />
       </div>
       <div class="field">
-        <label>KLIFS IFP XLSX</label>
+        <label>KLIFS IFP (.xlsx)</label>
         <input type="file" id="klifsIfpInput" accept=".xlsx" disabled />
       </div>
       <div class="field">
-        <label>Alignment CSV/TSV with columns kinase structure_ID pdb optional and 1..85</label>
+        <label>KLIFS PDB Alignment (.csv)</label>
         <input type="file" id="alignCsvInput" accept=".csv,.tsv,text/csv,text/tab-separated-values" disabled />
       </div>
       <div class="field">
-        <label>Docking pose XLSX</label>
+        <label>Docking pose (.xlsx)</label>
         <input type="file" id="dockXlsxInput" accept=".xlsx" disabled />
       </div>
 
@@ -1262,6 +1262,7 @@ function drawPdbHeatmapWithSwappedLabels(targetDivId, rows, featureDisplayMap, t
     hoverinfo: "skip",
     xaxis: "x",
     yaxis: "y",
+    line: { color: "#44bbca", width: 1.2},
     name: "Dendrogram"
   };
 
