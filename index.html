@@ -1163,7 +1163,11 @@ function computePdbClustering(rows){
    Heatmap drawing (tickvals/ticktext to avoid label merge)
    =========================== */
 function buildXTick(fmap){
-  const labels = klifsFeatureKeys.map(f=>fmap.get(f) || f);
+  const labels = klifsFeatureKeys.map(f => {
+    const lab = fmap.get(f) || f;
+    if (lab.endsWith("-HB")) return "";  // 不顯示
+    return lab;
+  });
   const tickvals = labels.map((_,i)=>i);
   const ticktext = labels;
   return { tickvals, ticktext };
@@ -1216,7 +1220,7 @@ function drawSimpleHeatmap(targetDivId, rows, featureDisplayMap, title){
     title,
     xaxis:{ title:"Features", tickangle:-90, tickmode:"array", tickvals, ticktext },
     yaxis:{ title:"Rows" },
-    margin:{ l:240, r:20, t:50, b:170 },
+    margin:{ l:240, r:20, t:50, b:120 },
     height: Math.max(560, 26*rows.length + 240),
   }, { responsive:true });
 }
@@ -1287,7 +1291,7 @@ function drawPdbHeatmapWithSwappedLabels(targetDivId, rows, featureDisplayMap, t
   const height = Math.max(560, 26*rows.length + 240);
 
   // three columns
-  const dendroEnd = 0.070;
+  const dendroEnd = 0.02;
   const gap = 0.010;
   const labelStart = dendroEnd + gap;
   const labelEnd = 0.250; // middle label column
