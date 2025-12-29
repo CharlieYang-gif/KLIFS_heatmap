@@ -2409,17 +2409,16 @@ function recomputeAllCompareOutputs(){
   const conf = computeConfusion(dockFreqRow, klifsFreq, thr);
   drawConfusionPlot(conf);
 
-  const permaText = mdsRes?.perma
-    ? `PERMANOVA F ${mdsRes.perma.F.toFixed(4)} p ${mdsRes.perma.p.toFixed(4)}`
-    : (mdsRes?.note || "PERMANOVA unavailable");
+  // PERMANOVA / X-axis / hover 說明全部不顯示
+  const summaryEl = document.getElementById("summaryInfo");
+  if (summaryEl){
+    summaryEl.innerHTML =
+      `Compare <span class="pill">Aligned</span> ` +
+      `Alignment <span class="pill">${lastDockAlignmentSid}</span> ` +
+      `Docking ligands <span class="pill">${dockFreqRow.__n}</span> ` +
+      `KLIFS structures <span class="pill">${klifsStruct.length}</span>`;
+  }
 
-  summaryInfo.innerHTML =
-    `Compare <span class="pill">Aligned</span> ` +
-    `Alignment <span class="pill">${lastDockAlignmentSid}</span> ` +
-    `Docking ligands <span class="pill">${dockFreqRow.__n}</span> ` +
-    `KLIFS structures <span class="pill">${klifsStruct.length}</span> ` +
-    `<br>X axis <span class="pill">KLIFS 1–85 (HP)</span> • Hover <span class="pill">shows residue mapping</span><br>` +
-    `${permaText}`;
 
   lastCompare.dockingPdb = safeTrim(dockPdbInput.value) || inferDockingPdbFromDockTable(dockRaw2D) || "";
   lastCompare.alignmentSid = lastDockAlignmentSid;
