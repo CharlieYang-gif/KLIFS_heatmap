@@ -210,7 +210,10 @@
 }
 
 /* Part 1 / Part 2 換底色：更「分區」且不搶圖 */
-.data-card.part1{ background:#fbfaf7; }  /* warm paper */
+.data-card.part1,
+.data-card.selection{
+  background-color: #f6f2ea;   /* same warm KLIFS color */
+}
 .data-card.part2{ background:#f7fbff; }  /* cool paper */
 .data-card.selection{ background:#ffffff; }
 
@@ -347,7 +350,7 @@
           </div>
   
           <div>
-            <label id="selectedLabel">Selected kinase (PDB mode uses the first selected)</label>
+            <label id="selectedLabel">Selected kinase</label>
             <select id="selectedList" class="selectbox" multiple disabled></select>
             <div class="muted small">Double click to move.</div>
           </div>
@@ -355,9 +358,7 @@
   
         <!-- ✅ 隱藏 selection summary：用 wrapper class 控制 -->
         <div id="selectionSummary" class="box-note muted" style="margin-top:12px;">
-          Empty selection means all. PDB mode shows all structures for the first selected kinase, clusters rows by
-          interaction similarity, and draws a dendrogram on the left. The plot always reserves a dendrogram gutter
-          so KLIFS and Docking heatmaps remain identical width.
+          Empty selection means all. 
         </div>
   
         <!-- ✅ Render KLIFS pinned to bottom center -->
