@@ -1074,16 +1074,39 @@ const HEATMAP_GUTTER = {
   xTickFontSize: 11
 };
 
-function buildKlifsPositionTick(){
-  // ALWAYS show KLIFS 1..85 for HP
+function buildKlifsPositionTick(featureMapForAxis){
   const xVals = klifsFeatureKeys.map((_, i) => i);
+
   const ticktext = klifsFeatureKeys.map(f=>{
     const m = String(f).match(/^(\d+)\-(HP|HB)$/i);
     if (!m) return "";
-    const pos = m[1];
+
     const kind = m[2].toUpperCase();
-    return (kind==="HP") ? String(pos) : "";
+
+    // 仍然只在 HP 欄位顯示，避免擠爆
+    if (kind !== "HP") return "";
+
+    // 尚未 Compare：顯示 KLIFS position + 類型
+    if (!featureMapForAxis){
+      return `${m[1]}-HP`;
+    }
+
+    const mapped = featureMapForAxis.get(f);
+
+    // 有對齊到 residue
+    if (mapped && mapped !== "_HP"){
+      return mapped;            // e.g. "123-HP"
+    }
+
+    // 對齊不到（缺失 residue）
+    if (mapped === "_HP"){
+      return "_-HP";
+    }
+
+    // fallback
+    return `${m[1]}-HP`;
   });
+
   return { xVals, tickvals: xVals, ticktext };
 }
 
@@ -1127,7 +1150,7 @@ function drawHeatmapFixedGutter({
     return s;
   });
   const yIdx = rowDispColored.map((_, i) => i);
-  const { xVals, tickvals, ticktext } = buildKlifsPositionTick();
+  const { xVals, tickvals, ticktext } = buildKlifsPositionTick(featureMapForHover);
   const colHover = buildColumnHoverText(featureMapForHover);
 
   const z = rows.map(r=>klifsFeatureKeys.map(f=>{
@@ -1213,7 +1236,7 @@ function drawHeatmapFixedGutter({
       ticktext,
       tickangle: -90,
       tickfont: { size: HEATMAP_GUTTER.xTickFontSize, color:"#111111" },
-      title: "KLIFS position (HP)",
+      title: "Aligned residue number",
       showgrid: false,
       zeroline: false
     },
