@@ -34,6 +34,7 @@
 
     }
 
+    
     body{
       font-family: Arial, Helvetica, system-ui, -apple-system, Segoe UI, sans-serif;
       margin:0;
@@ -111,18 +112,23 @@
     }
 
     .btn-secondary{
-      background:#f3f6ff;
-      color:#1f3e75;
-      border:1px solid #cfe0ff;
+      background:#becab7;
+      color:#756c4b;
+      border:1px solid #d5e3d4;
     }
-    .btn-secondary:hover{ background:#e7efff; }
-
+    .btn-secondary:hover{ background:#9d9d82; }
+    button:disabled{
+      background:#bfc1a9;
+      color:#6b7280;              /* ← 這裡改 disabled 的字色 */
+      cursor:not-allowed;
+      border: none;
+    }
     .btn-danger{
       background:#ffffff;
-      color:#7a271a;
-      border:1px solid #f2c7c2;
+      color:#6b7280;
+      border:1px solid #ce8892;
     }
-    .btn-danger:hover{ background:#fff2f1; }
+    .btn-danger:hover{ background:#b04552; }
 
     details{ border:1px solid #eeeeee; border-radius:10px; padding:10px 12px; background:#fafafa; }
     summary{ cursor:pointer; font-weight:800; color:#333344; outline:none; }
@@ -185,10 +191,12 @@
       overflow:hidden;
     }
     #dockHeatmap{
-      border:3px solid var(--border-strong);
-      box-shadow:0 2px 10px rgba(31,122,224,0.12);
+      border:2px solid var(--border-strong);
+      box-shadow:none;
     }
-
+    #klifsHeatmap{
+      border:2px solid var(--border-strong);
+    }
     /* Bar-chart legend strip like your KLIFS Y label line */
     .chart-strip{
       margin-top:6px;
@@ -323,7 +331,8 @@
 .hide-selection-summary #selectionSummary{
   display:none !important;
 }
-
+    #exportHint{ display:none !important; }
+    #thresholdHint{ display:none !important; }
   </style>
 </head>
 
@@ -464,27 +473,28 @@
       <summary>Docking comparison</summary>
 
       <div class="flex-row" style="margin-top:10px;">
-        <div class="field" style="min-width:320px;">
-          <label>KLIFS positive threshold</label>
-          <div class="inline">
-            <input type="number" id="klifsThresholdInput" min="0" max="1" step="0.01" value="0.50" />
-            <button class="btn-secondary" id="applyThresholdBtn" disabled>Apply</button>
-          </div>
-          <div class="muted small">
-            Ground truth uses Docking frequency at least 50 percent. Test positive uses KLIFS frequency at least threshold.
-          </div>
-          <div class="muted small" id="thresholdHint" style="margin-top:6px;"></div>
+      <div class="field" style="min-width:840px;">
+        <label>KLIFS positive threshold</label>
+    
+        <div class="inline" style="gap:10px; align-items:center;">
+          <input type="number" id="klifsThresholdInput" min="0" max="1" step="0.01" value="0.50" style="width:140px;" />
+          <button class="btn-secondary" id="applyThresholdBtn" disabled>Apply</button>
+    
+          <span style="width:14px;"></span>
+    
+          <button class="btn-secondary" id="exportExcelBtn" disabled>Export Excel</button>
+          <button class="btn-secondary" id="exportPlotsBtn" disabled>Export plots</button>
         </div>
-
-        <div class="field" style="min-width:520px;">
-          <label>Export</label>
-          <div class="inline">
-            <button class="btn-secondary" id="exportExcelBtn" disabled>Export Excel</button>
-            <button class="btn-secondary" id="exportPlotsBtn" disabled>Export plots</button>
-          </div>
-          <div class="muted small" id="exportHint" style="margin-top:6px;"></div>
+    
+        <div class="muted small" style="margin-top:6px;">
+          Ground truth uses Docking frequency at least 50 percent. Test positive uses KLIFS frequency at least threshold.
         </div>
+    
+        <!-- 保留這兩個 id 給 JS，但你不想顯示：用 CSS 隱藏 -->
+        <div class="muted small" id="thresholdHint" style="margin-top:6px;"></div>
+        <div class="muted small" id="exportHint" style="margin-top:6px;"></div>
       </div>
+    </div>
 
       <!-- “Histogram” strip (title/legend hint area) -->
       <div class="chart-strip muted small" id="diffStrip">
@@ -772,7 +782,7 @@ if (availableSearch) availableSearch.disabled = !listReady;
   const loadInfoHeader = document.getElementById("loadInfoHeader");
   if (loadInfoHeader) loadInfoHeader.innerHTML = statusHtml;
 
-  exportHint.textContent = canExport ? "" : "Run Compare to enable export.";
+  if (exportHint) exportHint.textContent = canExport ? "" : "";
 }
 
 
