@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">tio
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <title>Kinase IFP Heatmap Tool (KLIFS + Docking Compare)</title>
@@ -39,7 +39,7 @@
       color:var(--text);
     }
 
-    h1{ margin:0 0 12px 0; color:var(--primary); }
+    h1{ margin:0 0 12px 0; color:var(--primary); text-align:center; }
     h2{ margin:0 0 10px 0; }
     h3{ margin:12px 0 6px 0; }
 
@@ -250,11 +250,20 @@
 /* Card header */
 .data-card .card-title{
   font-weight:900;
-  margin:0 0 8px 0;
+  margin:0 0 10px 0;
   color:#111;
-  font-size:13px;
+  font-size:16px;          
   letter-spacing:0.2px;
+  line-height:1.25;
 }
+
+.card-subtitle{
+  font-weight:600;
+  font-size:12px;
+  color:var(--muted);
+  margin-left:8px;
+}
+
 
 .data-card .field{ min-width: unset; }
 .data-card .muted.small{ margin-top:6px; }
@@ -364,7 +373,11 @@
   
       <!-- Selection -->
       <div class="data-card selection">
-        <div class="card-title">Selection</div>
+       <div class="card-title">
+      Selection
+      <span class="card-subtitle">(Empty selection means all.)</span>
+    </div>
+
   
         <div class="selection-grid">
           <div>
@@ -384,11 +397,6 @@
             <select id="selectedList" class="selectbox" multiple disabled></select>
             <div class="muted small">Double click to move.</div>
           </div>
-        </div>
-  
-        <!-- ✅ 隱藏 selection summary：用 wrapper class 控制 -->
-        <div id="selectionSummary" class="box-note muted" style="margin-top:12px;">
-          Empty selection means all. 
         </div>
   
         <!-- ✅ Render KLIFS pinned to bottom center -->
@@ -1455,6 +1463,7 @@ function drawHeatmapFixedGutter({
     xaxis: {
       domain: [0, dendroEnd],
       showticklabels: false,
+      ticks: "",
       showgrid: false,
       zeroline: false,
       autorange: "reversed",
@@ -1476,6 +1485,7 @@ function drawHeatmapFixedGutter({
     yaxis: {
       domain: [0, 1],
       showticklabels: false,
+      ticks: "",
       showgrid: false,
       zeroline: false,
       range: [-0.5, rows.length - 0.5]
