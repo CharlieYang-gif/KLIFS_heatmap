@@ -1432,7 +1432,9 @@ function aggregateFreqRowsByScope(scope, value){
   const nKinase = rows.length;
   const nStruct = rows.reduce((acc,r)=>acc+(Number(r.__n)||0),0);
   out.__n = nStruct;
-  out.__label = `${value} (nKinase=${nKinase}, nStruct=${nStruct})`;
+
+  // ✅ short label
+  out.__label = `${value} (${nKinase}, ${nStruct})`;
 
   for (const f of klifsFeatureKeys){
     let sum=0, count=0;
@@ -1444,6 +1446,7 @@ function aggregateFreqRowsByScope(scope, value){
   }
   return out;
 }
+
 
 function getKlifsHeatmapRowsByCurrentSelection(){
   viewMode = viewModeSelect.value || "kinase";
@@ -1537,6 +1540,22 @@ runKlifsHeatmapBtn.addEventListener("click", ()=>{
     const res = getKlifsHeatmapRowsByCurrentSelection();
     const rows = res.rows || [];
     lastKlifsRows = rows.slice();
+    const klifsYLegend = document.getElementById("klifsYLegend");
+    const modeNow = viewModeSelect.value || "kinase";
+    
+    if (modeNow === "pdb") {
+      klifsYLegend.innerHTML =
+        `Y label (PDB mode): <span class="pill">KINASE/PDB/DFG/alphaC</span> (example: CLK4/6FYV/in/in).`;
+    } else if (modeNow === "family") {
+      klifsYLegend.innerHTML =
+        `Y label (Family mode): <span class="pill">FAMILY (nKinase, nStruct)</span> (example: CMGC (43, 864)).`;
+    } else if (modeNow === "group") {
+      klifsYLegend.innerHTML =
+        `Y label (Group mode): <span class="pill">GROUP (nKinase, nStruct)</span> (example: CMGC (43, 864)).`;
+    } else {
+      klifsYLegend.innerHTML =
+        `Y label (Kinase mode): <span class="pill">KINASE (nStruct)</span> (example: CLK4 (n=20)).`;
+    }
 
     drawHeatmapFixedGutter({
       divId: "klifsHeatmap",
@@ -1705,7 +1724,7 @@ function drawDiffPlot(dockFreq, klifsFreq, fmap){
 
   items.sort((a,b)=>b.dock - a.dock);
 
-  const x = items.map(it=>it.f); // keep raw key here (export uses fmap)
+  const x = items.map(it => (fmap?.get(it.f) || it.f));
   const yDock = items.map(it=>it.dock);
   const yKlifs = items.map(it=>it.klifs);
   const yDiff = items.map(it=>it.diff);
@@ -1716,11 +1735,12 @@ function drawDiffPlot(dockFreq, klifsFreq, fmap){
     { x, y:yDiff,  type:"scatter", mode:"lines+markers", name:"Delta Docking minus KLIFS", yaxis:"y2" }
   ], {
     title:"Docking vs KLIFS",
-    xaxis:{
-      tickangle:-90,
-      title:"Features (raw key)",
-      showgrid:false
-    },
+     xaxis:{
+        tickangle:-90,
+        title: fmap ? "Features (aligned residue)" : "Features (raw key)",
+        showgrid:false
+      },
+
     yaxis:{ title:"Frequency percent" },
     yaxis2:{ title:"Delta", overlaying:"y", side:"right" },
     barmode:"group",
