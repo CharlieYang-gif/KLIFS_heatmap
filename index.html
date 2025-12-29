@@ -14,23 +14,23 @@
       --panel:#ffffff;
       --text:#111111;
       --muted:#4d4d4d;
-      --primary:#2b6cb0;           /* quieter, more “paper” */
-      --primary-dark:#123a63;
+      --primary:#297270;
+      --primary-dark:#274753;
       --border:#d9d9d9;
       --border-strong:#bfbfbf;
-      --danger:#b00020;
+      --danger:#e66d50;
       --ok:#1b5e20;
       --pill-bg:#f2f2f2;
       --shadow:0 1px 3px rgba(0,0,0,0.06);
 
       /* Plot palette (journal-like) */
-      --c-docking:#374151;   /* slate */
-      --c-klifs:#0f766e;     /* deep teal */
-      --c-delta:#6d28d9;     /* purple */
+      --c-docking:#299d8f;   
+      --c-klifs:#f3a361;     
+      --c-delta:#cc4a74;     
       --c-thr-dock:#b00020;  /* red */
       --c-thr-klifs:#0f766e; /* teal */
-      --c-mds-klifs:#1f9e89;
-      --c-mds-docking:#2f2f2f;
+      --c-mds-klifs:#e66d50;
+      --c-mds-docking:#274753;
 
     }
 
@@ -222,10 +222,10 @@
 /* Part 1 / Part 2 / Selection 分區底色 */
 .data-card.part1,
 .data-card.selection{
-  background-color:#f6f2ea; /* warm paper */
+  background-color:#e7c66b; /* warm paper */
 }
 .data-card.part2{
-  background:#f7fbff;       /* cool paper */
+  background:#8ab07c;       /* cool paper */
 }
 
 /* ✅ FIX: Selection/Part1 內的 <select>/<input> 原本被全域 background:#fff 蓋掉
@@ -2266,7 +2266,7 @@ function drawMds(vectors, labels){
       color: cMdsKlifs,
       line:{ color:"#0b2f2a", width:1 }
     },
-    opacity:0.90
+    opacity:0.70
   },
   {
     x:xD, y:yD,
@@ -2276,7 +2276,7 @@ function drawMds(vectors, labels){
     marker:{
       size:9,
       color: cMdsDock,
-      line:{ color:"#ffffff", width:0.5 }
+      line:{ color:"#ffffff", width:1 }
     },
     opacity:0.70
   }
