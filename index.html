@@ -263,9 +263,7 @@
         </div>
 
         <div class="box-note muted" style="margin-top:12px;">
-          Empty selection means all. PDB mode shows all structures for the first selected kinase,
-          clusters rows by interaction similarity, and draws a dendrogram on the left. The plot always reserves
-          a dendrogram gutter so KLIFS and Docking heatmaps remain identical width.
+          Empty selection means all
         </div>
 
         <div class="muted" id="summaryInfo" style="margin-top:10px;"></div>
@@ -617,7 +615,7 @@ function refreshUiLocks(){
     `Docking <span class="pill">${dockLoaded?"OK":"Missing"}</span>`;
 
   exportHint.textContent = canExport
-    ? "Filenames include docking PDB and current KLIFS selection."
+    ? " "
     : "Run Compare to enable export.";
 }
 
@@ -950,7 +948,7 @@ dockXlsxInput.addEventListener("change", async (e)=>{
     const buffer = await file.arrayBuffer();
     dockRaw2D = readXlsxArrayBuffer(buffer);
     dockLoaded = true;
-    setStatus("Docking pose loaded. (Optional) Enter docking PDB to pick alignment. Then Compare.");
+    setStatus("Docking pose loaded (Optional) Enter PDB code");
   }catch(err){
     console.error(err);
     dockLoaded=false;
@@ -1032,7 +1030,7 @@ function rebuildAvailableSelectedLists(resetSelected=false){
     selectedLabel.textContent  = "Selected groups";
   }else{
     availableLabel.textContent = "Available kinases";
-    selectedLabel.textContent  = "Selected kinase (PDB mode uses the first selected)";
+    selectedLabel.textContent  = "Selected kinase";
   }
 }
 viewModeSelect.addEventListener("change", ()=>{ rebuildAvailableSelectedLists(true); });
