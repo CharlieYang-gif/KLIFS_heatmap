@@ -188,111 +188,208 @@
       border:1px solid #eeeeee;
       background:#fafafa;
     }
+
+  /* ===== Data panel 3-column layout cards ===== */
+.data-grid{
+  display:grid;
+  grid-template-columns: 1.05fr 1.2fr 1.05fr;
+  gap:14px;
+  margin-top:12px;
+  align-items:stretch;
+}
+
+.data-card{
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:14px 14px 12px 14px;
+  background:#ffffff;
+  box-shadow:0 1px 2px rgba(0,0,0,0.04);
+  display:flex;
+  flex-direction:column;
+  min-height: 520px;
+}
+
+/* Part 1 / Part 2 換底色：更「分區」且不搶圖 */
+.data-card.part1{ background:#fbfaf7; }  /* warm paper */
+.data-card.part2{ background:#f7fbff; }  /* cool paper */
+.data-card.selection{ background:#ffffff; }
+
+/* Card header */
+.data-card .card-title{
+  font-weight:900;
+  margin:0 0 8px 0;
+  color:#111;
+  font-size:13px;
+  letter-spacing:0.2px;
+}
+
+.data-card .field{ min-width: unset; }
+.data-card .muted.small{ margin-top:6px; }
+
+/* Buttons pinned to bottom center */
+.card-actions{
+  margin-top:auto;
+  padding-top:12px;
+  display:flex;
+  justify-content:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.card-actions button{
+  min-width:140px;
+}
+
+/* Selection list layout inside the middle card */
+.selection-grid{
+  display:grid;
+  grid-template-columns: 1fr 150px 1fr;
+  gap:12px;
+  align-items:stretch;
+}
+.selection-grid .selectbox{ min-height: 300px; }
+.selection-mid{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:10px;
+}
+
+/* ===== Move status pills to "1 Data" header right ===== */
+.panel-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+.panel-head-right{
+  text-align:right;
+  margin-top:2px;
+  min-width: 420px;
+}
+#loadInfoHeader{ margin-top:6px; }
+
+/* ===== Hide Selection footer summary text (x axis / hover / PERMANOVA line) ===== */
+.hide-selection-summary #selectionSummary{
+  display:none !important;
+}
+
   </style>
 </head>
 
 <body>
   <h1>Kinase Interaction Heatmap Tool</h1>
 
-  <div class="panel">
-    <h2>1 Data</h2>
-    <div class="muted">
-      Workflow: render KLIFS heatmap, then run Compare to generate Docking heatmap and statistics.
-      Reset clears plots and UI state but keeps loaded files.
-    </div>
-
-    <div class="grid3">
-      <!-- LEFT: Part 1 inputs + view mode + status -->
-      <div class="card">
-        <h3>Part 1: KLIFS dataset</h3>
-        <div class="stack">
-          <div>
-            <label>Kinase family info (.csv)</label>
-            <input type="file" id="metaCsvInput" accept=".csv,.tsv,text/csv,text/tab-separated-values" />
-          </div>
-          <div>
-            <label>KLIFS IFP (.xlsx)</label>
-            <input type="file" id="klifsIfpInput" accept=".xlsx" disabled />
-          </div>
-
-          <div>
-            <label>View mode</label>
-            <select id="viewModeSelect" disabled>
-              <option value="kinase">Kinase</option>
-              <option value="family">Family</option>
-              <option value="group">Group</option>
-              <option value="pdb">PDBs of selected kinase</option>
-            </select>
-            <div class="muted small" style="margin-top:6px;">
-              PDB mode requires selecting <span class="pill">at least one kinase</span> (first selected kinase is used).
-            </div>
-          </div>
-
-          <div>
-            <label>Status</label>
-            <div class="status" id="statusText">Initialize: load Meta CSV</div>
-            <div class="muted small" id="loadInfo" style="margin-top:6px;"></div>
-          </div>
+      <div class="panel" id="dataPanel">
+    <div class="panel-head">
+      <div>
+        <h2>1 Data</h2>
+        <div class="muted">
+          Workflow: render KLIFS heatmap, then run Compare to generate Docking heatmap and statistics.
+          Reset clears plots and UI state but keeps loaded files.
         </div>
       </div>
-
-      <!-- MIDDLE: selection + actions -->
-      <div class="card">
-        <h3>Selection</h3>
-
-        <div class="selectrow" style="margin-top:6px;">
+  
+      <!-- ✅ Status pills moved to header right -->
+      <div class="panel-head-right">
+        <div class="status" id="statusText">Initialize: load Meta CSV</div>
+        <div class="muted small" id="loadInfoHeader"></div>
+      </div>
+    </div>
+  
+    <div class="data-grid">
+      <!-- Part 1 -->
+      <div class="data-card part1">
+        <div class="card-title">Part 1: KLIFS dataset</div>
+  
+        <div class="field">
+          <label>Kinase family info (.csv)</label>
+          <input type="file" id="metaCsvInput" accept=".csv,.tsv,text/csv,text/tab-separated-values" />
+        </div>
+  
+        <div class="field" style="margin-top:10px;">
+          <label>KLIFS IFP (.xlsx)</label>
+          <input type="file" id="klifsIfpInput" accept=".xlsx" disabled />
+        </div>
+  
+        <div class="field" style="margin-top:12px;">
+          <label>View mode</label>
+          <select id="viewModeSelect" disabled>
+            <option value="kinase">Kinase</option>
+            <option value="family">Family</option>
+            <option value="group">Group</option>
+            <option value="pdb">PDBs of selected kinase</option>
+          </select>
+          <div class="muted small">
+            PDB mode requires selecting <span class="pill">at least one kinase</span> (first selected kinase is used).
+          </div>
+        </div>
+  
+        <!-- ✅ Part 1 no longer shows status pills here -->
+        <div style="margin-top:12px;" class="muted small" id="loadInfo"></div>
+        <!-- 上面這個保留 id="loadInfo" 但會由 JS 寫入到 header 的 loadInfoHeader；這裡會在 JS 內清空 -->
+      </div>
+  
+      <!-- Selection -->
+      <div class="data-card selection">
+        <div class="card-title">Selection</div>
+  
+        <div class="selection-grid">
           <div>
-            <label id="availableLabel">Available</label>
+            <label id="availableLabel">Available kinases</label>
             <select id="availableList" class="selectbox" multiple disabled></select>
             <div class="muted small">Double click to move.</div>
           </div>
-
-          <div class="midcol">
+  
+          <div class="selection-mid">
             <button id="addBtn" disabled>Add</button>
             <button id="removeBtn" disabled>Remove</button>
             <button class="btn-secondary" id="clearSelectedBtn" disabled>Clear selection</button>
-            <div style="height:6px;"></div>
-            <button id="runKlifsHeatmapBtn" disabled>Render KLIFS</button>
           </div>
-
+  
           <div>
-            <label id="selectedLabel">Selected</label>
+            <label id="selectedLabel">Selected kinase (PDB mode uses the first selected)</label>
             <select id="selectedList" class="selectbox" multiple disabled></select>
             <div class="muted small">Double click to move.</div>
           </div>
         </div>
-
-        <div class="box-note muted" style="margin-top:12px;">
-          Empty selection means all
+  
+        <!-- ✅ 隱藏 selection summary：用 wrapper class 控制 -->
+        <div id="selectionSummary" class="box-note muted" style="margin-top:12px;">
+          Empty selection means all. PDB mode shows all structures for the first selected kinase, clusters rows by
+          interaction similarity, and draws a dendrogram on the left. The plot always reserves a dendrogram gutter
+          so KLIFS and Docking heatmaps remain identical width.
         </div>
-
-        <div class="muted" id="summaryInfo" style="margin-top:10px;"></div>
+  
+        <!-- ✅ Render KLIFS pinned to bottom center -->
+        <div class="card-actions">
+          <button id="runKlifsHeatmapBtn" disabled>Render KLIFS</button>
+        </div>
       </div>
-
-      <!-- RIGHT: Part 2 inputs + compare + reset -->
-      <div class="card">
-        <h3>Part 2: Docking comparison</h3>
-        <div class="stack">
-          <div>
-            <label>KLIFS PDB Alignment (.csv/.tsv)</label>
-            <input type="file" id="alignCsvInput" accept=".csv,.tsv,text/csv,text/tab-separated-values" disabled />
-          </div>
-          <div>
-            <label>Docking pose (.xlsx)</label>
-            <input type="file" id="dockXlsxInput" accept=".xlsx" disabled />
-          </div>
-          <div>
-            <label>Docking PDB (for alignment)</label>
-            <input type="text" id="dockPdbInput" placeholder="Example 6FYV" disabled />
-            <div class="muted small" style="margin-top:6px;">
-              Case-insensitive. If empty, tool will try to infer from docking table column "pdb".
-            </div>
-          </div>
-
-          <div class="inline" style="margin-top:4px;">
-            <button id="compareBtn" disabled>Compare</button>
-            <button class="btn-danger" id="resetBtn" disabled>Reset</button>
-          </div>
+  
+      <!-- Part 2 -->
+      <div class="data-card part2">
+        <div class="card-title">Part 2: Docking comparison</div>
+  
+        <div class="field">
+          <label>KLIFS PDB Alignment (.csv/.tsv)</label>
+          <input type="file" id="alignCsvInput" accept=".csv,.tsv,text/csv,text/tab-separated-values" disabled />
+        </div>
+  
+        <div class="field" style="margin-top:10px;">
+          <label>Docking pose (.xlsx)</label>
+          <input type="file" id="dockXlsxInput" accept=".xlsx" disabled />
+        </div>
+  
+        <div class="field" style="margin-top:10px;">
+          <label>Docking PDB (for alignment)</label>
+          <input type="text" id="dockPdbInput" placeholder="Example 6FYV" disabled />
+          <div class="muted small">Case-insensitive. If empty, tool will try to infer from docking table column "pdb".</div>
+        </div>
+  
+        <!-- ✅ Compare / Reset pinned to bottom center -->
+        <div class="card-actions">
+          <button id="compareBtn" disabled>Compare</button>
+          <button class="btn-danger" id="resetBtn" disabled>Reset</button>
         </div>
       </div>
     </div>
@@ -608,16 +705,23 @@ function refreshUiLocks(){
     ? "Edit the threshold, then click Apply to recompute metrics."
     : "Run Compare to enable threshold apply.";
 
-  loadInfo.innerHTML =
-    `Meta <span class="pill">${metaLoaded?"OK":"Missing"}</span> ` +
-    `KLIFS IFP <span class="pill">${klifsLoaded?"OK":"Missing"}</span> ` +
-    `Alignment <span class="pill">${alignLoaded?"OK":"Missing"}</span> ` +
-    `Docking <span class="pill">${dockLoaded?"OK":"Missing"}</span>`;
+  /* ===== Status pills (ONLY source) ===== */
+  const statusHtml =
+    `Meta <span class="pill">${metaLoaded ? "OK" : "Missing"}</span> ` +
+    `KLIFS IFP <span class="pill">${klifsLoaded ? "OK" : "Missing"}</span> ` +
+    `Alignment <span class="pill">${alignLoaded ? "OK" : "Missing"}</span> ` +
+    `Docking <span class="pill">${dockLoaded ? "OK" : "Missing"}</span>`;
 
-  exportHint.textContent = canExport
-    ? " "
-    : "Run Compare to enable export.";
+  // 舊位置不再顯示
+  if (loadInfo) loadInfo.innerHTML = "";
+
+  // Header 右側顯示
+  const loadInfoHeader = document.getElementById("loadInfoHeader");
+  if (loadInfoHeader) loadInfoHeader.innerHTML = statusHtml;
+
+  exportHint.textContent = canExport ? "" : "Run Compare to enable export.";
 }
+
 
 /* ===========================
    Meta CSV
@@ -2082,24 +2186,39 @@ function drawMds(vectors, labels){
   }
 
   Plotly.newPlot("mdsPlot", [
-    {
-      x:xK, y:yK, type:"scatter", mode:"markers",
-      name:`KLIFS (n=${xK.length})`, opacity:0.55,
-      marker:{ size:9, symbol:"triangle-up", color:getComputedStyle(document.documentElement).getPropertyValue('--c-klifs').trim() || "#0f766e" }
+  {
+    x:xK, y:yK,
+    type:"scatter",
+    mode:"markers",
+    name:`KLIFS (n=${xK.length})`,
+    marker:{
+      size:11,
+      symbol:"triangle-up",
+      color:"#1f9e89",              // teal
+      line:{ color:"#0b2f2a", width:1 }
     },
-    {
-      x:xD, y:yD, type:"scatter", mode:"markers",
-      name:`Docking (n=${xD.length})`, opacity:0.85,
-      marker:{ size:8, color:getComputedStyle(document.documentElement).getPropertyValue('--c-docking').trim() || "#374151" }
-    }
-  ], {
-    title:"MDS with Jaccard distance",
-    xaxis:{ title:"Dimension 1" },
-    yaxis:{ title:"Dimension 2" },
-    margin:{ l:70, r:20, t:60, b:60 },
-    height:620,
-    legend:{ orientation:"h", y:1.08 }
-  }, { responsive:true });
+    opacity:0.90
+  },
+  {
+    x:xD, y:yD,
+    type:"scatter",
+    mode:"markers",
+    name:`Docking (n=${xD.length})`,
+    marker:{
+      size:9,
+      color:"#2f2f2f",              // charcoal
+      line:{ color:"#ffffff", width:0.5 }
+    },
+    opacity:0.70
+  }
+], {
+  title:"MDS with Jaccard distance",
+  xaxis:{ title:"Dimension 1" },
+  yaxis:{ title:"Dimension 2" },
+  margin:{ l:70, r:20, t:50, b:50 },
+  height:620,
+  legend:{ orientation:"h" }
+}, { responsive:true });
 
   return { perma };
 }
@@ -2478,6 +2597,8 @@ exportPlotsBtn.addEventListener("click", async ()=>{
    =========================== */
 function resetWorkflowState(){
   viewModeSelect.value = "kinase";
+  // Hide selection summary block (x axis / hover / permanova note)
+  document.getElementById("dataPanel")?.classList.add("hide-selection-summary");
 
   selectedList.innerHTML = "";
   rebuildAvailableSelectedLists(true);
