@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en">tio
 <head>
   <meta charset="UTF-8" />
   <title>Kinase IFP Heatmap Tool (KLIFS + Docking Compare)</title>
@@ -210,11 +210,42 @@
 }
 
 /* Part 1 / Part 2 換底色：更「分區」且不搶圖 */
+/* Part 1 / Part 2 / Selection 分區底色 */
 .data-card.part1,
 .data-card.selection{
-  background-color: #f6f2ea;   /* same warm KLIFS color */
+  background-color:#f6f2ea; /* warm paper */
 }
-.data-card.part2{ background:#f7fbff; }  /* cool paper */
+.data-card.part2{
+  background:#f7fbff;       /* cool paper */
+}
+
+/* ✅ FIX: Selection/Part1 內的 <select>/<input> 原本被全域 background:#fff 蓋掉
+   → 用更高 specificity 覆寫，讓表單元件看起來「有跟著分區底色」 */
+.data-card.part1 input[type="file"],
+.data-card.part1 input[type="text"],
+.data-card.part1 input[type="number"],
+.data-card.part1 select,
+.data-card.selection input[type="file"],
+.data-card.selection input[type="text"],
+.data-card.selection input[type="number"],
+.data-card.selection select{
+  background: rgba(255,255,255,0.55);
+  border-color: rgba(0,0,0,0.18);
+}
+
+/* selectbox 讓列表更像嵌在卡片裡，不再純白一整塊 */
+.data-card.selection select.selectbox{
+  background: rgba(255,255,255,0.40);
+}
+
+/* Part2 保持更乾淨的白 */
+.data-card.part2 input[type="file"],
+.data-card.part2 input[type="text"],
+.data-card.part2 input[type="number"],
+.data-card.part2 select{
+  background: rgba(255,255,255,0.92);
+}
+
 
 /* Card header */
 .data-card .card-title{
@@ -401,6 +432,7 @@
     <div class="muted small" id="klifsYLegend" style="margin-top:6px;">
       Y label (PDB mode): <span class="pill">KINASE/PDB/DFG/alphaC</span> (example: CLK4/6FYV/in/in).
     </div>
+    <div class="muted small" id="summaryInfo" style="margin-top:8px;"></div>
 
     <div id="klifsHeatmap"></div>
 
@@ -1732,6 +1764,8 @@ function getKlifsHeatmapRowsByCurrentSelection(){
 runKlifsHeatmapBtn.addEventListener("click", ()=>{
   try{
     if (!(metaLoaded && klifsLoaded)) return;
+
+    // ✅ PDB mode 必須至少選一個 kinase，否則直接擋掉（並顯示明確訊息）
     if (!guardPdbModeKinaseSelection()) return;
 
     const res = getKlifsHeatmapRowsByCurrentSelection();
@@ -1761,23 +1795,27 @@ runKlifsHeatmapBtn.addEventListener("click", ()=>{
       titleText: "KLIFS interaction frequency",
       featureMapForHover: residueModeActive ? residueFeatureMap : null,
       dendroSegments: res.dendro,
-      highlightFullLabel: (viewModeSelect.value==="pdb") ? lastKlifsHighlightedRowLabel : ""
+      highlightFullLabel: (modeNow==="pdb") ? lastKlifsHighlightedRowLabel : ""
     });
 
+    // ✅ FIX: summaryInfo 可能不存在 → 防呆
     const picked = getSelectedValues();
-    summaryInfo.innerHTML =
-      `View mode <span class="pill">${viewModeSelect.value}</span> ` +
-      `Rows <span class="pill">${rows.length}</span> ` +
-      (viewModeSelect.value==="pdb"
-        ? `Kinase <span class="pill">${picked[0] || ""}</span> <span class="pill">dendrogram reserved</span>`
-        : `Selected <span class="pill">${picked.length ? picked.join(", ") : "All"}</span>`) +
-      `<br>X axis <span class="pill">KLIFS 1–85 (HP)</span> • ` +
-      `Hover <span class="pill">${residueModeActive ? "shows residue mapping" : "shows KLIFS position"}</span>`;
+    const summaryEl = document.getElementById("summaryInfo");
+    if (summaryEl){
+      summaryEl.innerHTML =
+        `View mode <span class="pill">${modeNow}</span> ` +
+        `Rows <span class="pill">${rows.length}</span> ` +
+        (modeNow==="pdb"
+          ? `Kinase <span class="pill">${picked[0] || ""}</span> <span class="pill">dendrogram reserved</span>`
+          : `Selected <span class="pill">${picked.length ? picked.join(", ") : "All"}</span>`);
+    }
+
   }catch(err){
     console.error(err);
     alert("KLIFS render failed: " + err.message);
   }
 });
+
 
 /* ===========================
    Docking processing
