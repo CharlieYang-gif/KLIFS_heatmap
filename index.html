@@ -2258,7 +2258,12 @@ function drawMds(vectors, labels){
   const D = pairwiseDistanceMatrix(vectors);
   const perma = permanovaTest(D, labels, 199);
   const mds = mds2DFromDistance(D);
-
+  const cMdsKlifs = getComputedStyle(document.documentElement)
+      .getPropertyValue("--c-mds-klifs")
+      .trim() || "#6b5458";
+  const cMdsDock = getComputedStyle(document.documentElement)
+      .getPropertyValue("--c-mds-docking")
+      .trim() || "#68945c";
   const xK=[], yK=[], xD=[], yD=[];
   for (let i=0;i<labels.length;i++){
     if (labels[i]==="KLIFS"){ xK.push(mds.x[i]); yK.push(mds.y[i]); }
