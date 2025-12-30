@@ -24,13 +24,13 @@
       --shadow:0 1px 3px rgba(0,0,0,0.06);
 
       /* Plot palette (journal-like) */
-      --c-docking:#68945c;   
-      --c-klifs:#6b5458;     
-      --c-delta:#2c2f3b;     
-      --c-thr-dock:#13393e;  /* red */
-      --c-thr-klifs:#422517; /* teal */
-      --c-mds-docking:#68945c;
-      --c-mds-klifs:#6b5458;
+      --c-docking:#87c0ca;   
+      --c-klifs:#ce93bf;     
+      --c-delta:#757cbb;     
+      --c-thr-dock:#106898;  /* red */
+      --c-thr-klifs:#8a1874; /* teal */
+      --c-mds-docking:#106898;
+      --c-mds-klifs:#8a1874;
 
     }
 
@@ -231,10 +231,10 @@
 /* Part 1 / Part 2 / Selection 分區底色 */
 .data-card.part1,
 .data-card.selection{
-  background-color:#eae4d1; /* warm paper */
+  background-color:#f5f2e9; /* warm paper */
 }
 .data-card.part2{
-  background:#d5e3d4;       /* cool paper */
+  background:#f5f3f2;       /* cool paper */
 }
 
 /* ✅ FIX: Selection/Part1 內的 <select>/<input> 原本被全域 background:#fff 蓋掉
@@ -1321,11 +1321,11 @@ function makeTwoToneColorscale(){
   return [
     [0.00, "#f7f7f7"],
     [0.20, "#e5e7eb"],
-    [0.40, "#ddbb99"],
-    [t - 1e-6, "#db9c5e"],
-    [t, "#ed6d3d"],
-    [0.75, "#cc5d20"],
-    [1.00, "#9f5221"]
+    [0.35, "#d3ccd6"],
+    [t - 1e-6, "#d9a0b3"],
+    [t, "#4182a4"],
+    [0.75, "#06436f"],
+    [1.00, "#1a2847"]
   ];
 }
 
