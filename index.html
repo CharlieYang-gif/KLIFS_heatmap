@@ -2254,6 +2254,13 @@ function drawMds(vectors, labels){
     Plotly.purge("mdsPlot");
     return { perma:null, note:"Insufficient samples for MDS and PERMANOVA." };
   }
+  const cMdsKlifs = getComputedStyle(document.documentElement)
+    .getPropertyValue("--c-mds-klifs")
+    .trim() || "#6b5458";
+  const cMdsDock = getComputedStyle(document.documentElement)
+    .getPropertyValue("--c-mds-docking")
+    .trim() || "#68945c";
+
   const D = pairwiseDistanceMatrix(vectors);
   const perma = permanovaTest(D, labels, 199);
   const mds = mds2DFromDistance(D);
